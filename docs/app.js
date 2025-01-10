@@ -526,8 +526,12 @@ const getEligiblePlayers = async (min_item_level, raid_id) => {
     try {
         const { data: players, error: playersError } = await supabase
             .from('players')
-            .select('id, username, characters (id, item_level)')
-            .filter('characters.item_level', 'gte', min_item_level);
+            .select(`
+                id,
+                username,
+                characters (id, item_level)
+            `)
+            .gte('characters.item_level', min_item_level);
 
         if (playersError) {
             console.error('Error fetching players:', playersError);
@@ -536,11 +540,15 @@ const getEligiblePlayers = async (min_item_level, raid_id) => {
 
         const eligiblePlayers = [];
         for (const player of players) {
+            const characterIds = player.characters.map(char => char.id);
+
+            if (characterIds.length === 0) continue;
+
             const { data: assignments, error: assignmentsError } = await supabase
                 .from('group_members')
                 .select('character_id, group_id')
-                .in('character_id', player.characters.map(char => char.id))
-                .eq('group_id.raid_id', raid_id);
+                .in('character_id', characterIds)
+                .eq('group_id', raid_id);
 
             if (assignmentsError) {
                 console.error('Error fetching assignments:', assignmentsError);
