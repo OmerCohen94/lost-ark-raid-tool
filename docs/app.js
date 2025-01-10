@@ -87,12 +87,23 @@ const fetchPlayersForGroup = async (group_id) => {
             .eq('id', group_id)
             .single();
 
-        if (groupError || !group) {
-            console.error('Error fetching group:', groupError || 'Group not found');
+        if (groupError) {
+            console.error('Error fetching group:', groupError);
+            return { error: 'Error fetching group' };
+        }
+
+        if (!group) {
+            console.error('Group not found');
             return { error: 'Group not found' };
         }
 
         const { raid_id, min_item_level } = group;
+
+        // Validate retrieved values
+        if (!raid_id || min_item_level === null || min_item_level === undefined) {
+            console.error('Invalid raid ID or minimum item level retrieved from group');
+            return { error: 'Invalid raid ID or minimum item level' };
+        }
 
         // Fetch players with eligible characters for the raid
         const { data: players, error: playersError } = await supabase
