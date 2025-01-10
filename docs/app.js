@@ -524,7 +524,6 @@ const fetchAllCharacters = async () => {
 //Function to get eligible players
 const getEligiblePlayers = async (min_item_level, raid_id) => {
     try {
-        // Fetch all players with characters meeting the minimum item level
         const { data: players, error: playersError } = await supabase
             .from('players')
             .select('id, username, characters (id, item_level)')
@@ -535,12 +534,11 @@ const getEligiblePlayers = async (min_item_level, raid_id) => {
             return { error: 'Error fetching players' };
         }
 
-        // Filter out players whose characters are already assigned to the specified raid
         const eligiblePlayers = [];
         for (const player of players) {
             const { data: assignments, error: assignmentsError } = await supabase
                 .from('group_members')
-                .select('character_id')
+                .select('character_id, group_id')
                 .in('character_id', player.characters.map(char => char.id))
                 .eq('group_id.raid_id', raid_id);
 
@@ -549,7 +547,6 @@ const getEligiblePlayers = async (min_item_level, raid_id) => {
                 continue;
             }
 
-            // If no characters are assigned, add the player to the eligible list
             if (!assignments.length) {
                 eligiblePlayers.push({
                     id: player.id,
