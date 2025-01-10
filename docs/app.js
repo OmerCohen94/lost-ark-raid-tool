@@ -644,26 +644,34 @@ async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId
 }
 
 // Function to populate raids in the dropdown SUPABASE
-async function populateRaidDropdown(raidSelect) {
-    try {
-        const raids = await fetchRaids();
+async function populateRaidDropdown() {
+    const raidSelect = document.getElementById('raid-select');
+    if (!raidSelect) {
+        console.error('Raid dropdown not found');
+        return;
+    }
 
-        if (!raids.error) {
-            raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>';
-            raids.forEach(raid => {
-                const option = document.createElement('option');
-                option.value = raid.id;
-                option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
-                raidSelect.appendChild(option);
-            });
-            raidSelect.disabled = false;
-        } else {
-            console.error('Error fetching raids:', raids.error);
-            raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
+    try {
+        const { data: raids, error } = await supabase
+            .from('raids')
+            .select('id, name, min_item_level');
+
+        if (error) {
+            console.error('Error fetching raids:', error);
+            return;
         }
+
+        raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>'; // Reset options
+
+        raids.forEach(raid => {
+            const option = document.createElement('option');
+            option.value = raid.id;
+            option.setAttribute('data-min-ilvl', raid.min_item_level);
+            option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
+            raidSelect.appendChild(option);
+        });
     } catch (error) {
         console.error('Unexpected error populating raid dropdown:', error);
-        raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
     }
 }
 
@@ -723,8 +731,12 @@ const createRaidGroup = async (raid_id, min_item_level) => {
             .eq('id', raid_id)
             .single();
 
-        if (raidError || !raid) {
-            console.error('Error fetching raid:', raidError || 'Raid not found');
+        if (raidError) {
+            console.error('Error fetching raid:', raidError);
+            return { error: 'Error fetching raid' };
+        }
+        if (!raid) {
+            console.error('Raid not found');
             return { error: 'Raid not found' };
         }
 
@@ -757,9 +769,13 @@ const createRaidGroup = async (raid_id, min_item_level) => {
             .select('id')
             .single();
 
-        if (insertError || !newGroup) {
+        if (insertError) {
             console.error('Error creating group:', insertError);
             return { error: 'Error creating group' };
+        }
+        if (!newGroup) {
+            console.error('Group creation failed');
+            return { error: 'Group creation failed' };
         }
 
         console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
