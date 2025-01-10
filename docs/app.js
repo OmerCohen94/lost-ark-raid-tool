@@ -535,6 +535,39 @@ async function restoreDropdownSelections(groupId) {
     }
 }
 
+// Function to get raid minimum item level
+ let selectedMinItemLevel = null; // Store the minimum item level for the selected raid
+window.setMinItemLevel = async () => {
+    const raidSelect = document.getElementById('raid-select');
+    const raid_id = raidSelect.value;
+
+    if (!raid_id) {
+        console.error('No raid selected');
+        return;
+    }
+
+    try {
+        const { data: raid, error } = await supabase
+            .from('raids')
+            .select('min_item_level')
+            .eq('id', raid_id)
+            .single();
+
+        if (error || !raid) {
+            console.error('Error fetching minimum item level:', error || 'Raid not found');
+            alert('Error fetching minimum item level for the selected raid.');
+            selectedMinItemLevel = null;
+            return;
+        }
+
+        selectedMinItemLevel = raid.min_item_level;
+        console.log('Selected Minimum Item Level:', selectedMinItemLevel);
+    } catch (error) {
+        console.error('Unexpected error fetching minimum item level:', error);
+        selectedMinItemLevel = null;
+    }
+};
+
 // Function to populate characters in a dropdown SUPABASE
 async function populateCharacterDropdown(playerId, groupId, characterSelect) {
     if (!playerId) {
@@ -677,7 +710,7 @@ async function updateCharacterOptions(playerSelect, characterSelect, groupId) {
 
 // Function to create a raid group SUPABASE
 const createRaidGroup = async (raid_id, min_item_level) => {
-    if (!raid_id || !min_item_level) {
+    if (!raid_id || min_item_level === null || min_item_level === undefined) {
         console.error('Raid ID and minimum item level are required');
         return { error: 'Raid ID and minimum item level are required' };
     }
@@ -708,7 +741,7 @@ const createRaidGroup = async (raid_id, min_item_level) => {
             return { error: 'Error counting groups' };
         }
 
-        const nextGroupNumber = groupCount + 1;
+        const nextGroupNumber = (groupCount || 0) + 1;
         const groupName = `Group ${nextGroupNumber}`;
 
         // Insert the new group
@@ -729,6 +762,7 @@ const createRaidGroup = async (raid_id, min_item_level) => {
             return { error: 'Error creating group' };
         }
 
+        console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
         return {
             id: newGroup.id,
             group_name: groupName,
