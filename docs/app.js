@@ -693,7 +693,7 @@ async function populateRaidDropdown() {
     try {
         const { data: raids, error } = await supabase
             .from('raids')
-            .select('id, name, min_item_level'); // Use the correct column names
+            .select('id, name, min_item_level');
 
         if (error) {
             console.error('Error fetching raids:', error);
@@ -704,9 +704,9 @@ async function populateRaidDropdown() {
 
         raids.forEach(raid => {
             const option = document.createElement('option');
-            option.value = raid.id; // Use the raid ID as the value
-            option.setAttribute('data-min-ilvl', raid.min_item_level); // Store min item level as a data attribute
-            option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`; // Use the raid name
+            option.value = raid.id; // Set the raid ID
+            option.setAttribute('data-min-ilvl', raid.min_item_level); // Store minimum item level
+            option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
             raidSelect.appendChild(option);
         });
     } catch (error) {
@@ -1264,13 +1264,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (raidSelect) {
         // Raid Organizer Page
-        populateRaidDropdown(raidSelect);
-        loadExistingGroups();
+        populateRaidDropdown();
+
+        // Load existing groups after dropdown population
+        raidSelect.addEventListener('change', async () => {
+            await loadExistingGroups(); // Refresh the groups when a raid is selected
+        });
 
         document.getElementById('create-raid-btn')?.addEventListener('click', async () => {
-            const raidId = raidSelect.value;
-            const minItemLevel = document.getElementById('min-item-level-input').value;
-            await createRaidGroup(raidId, minItemLevel);
+            const selectedOption = raidSelect.options[raidSelect.selectedIndex];
+            if (!selectedOption || !selectedOption.value) {
+                alert('Please select a raid to create a group.');
+                return;
+            }
+
+            const raidId = selectedOption.value;
+            const minItemLevel = selectedOption.getAttribute('data-min-ilvl');
+
+            if (!raidId || !minItemLevel) {
+                alert('Invalid raid selection or missing minimum item level.');
+                return;
+            }
+
+            await createRaidGroup(raidId, parseInt(minItemLevel, 10));
             await loadExistingGroups(); // Refresh the groups
         });
     }
@@ -1290,6 +1306,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('add-player-btn')?.addEventListener('click', async () => {
             const usernameInput = document.getElementById('username-input');
+            if (usernameInput.value.trim() === '') {
+                alert('Please enter a valid username.');
+                return;
+            }
             await addNewPlayer(usernameInput);
             await loadPlayersForAddPage(playerSelect); // Refresh the player dropdown
         });
@@ -1297,6 +1317,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('add-character-btn')?.addEventListener('click', async () => {
             const characterNameInput = document.getElementById('character-name-input');
             const itemLevelInput = document.getElementById('item-level-input');
+            if (!playerSelect.value || !characterNameInput.value || !itemLevelInput.value) {
+                alert('Please fill in all fields to add a character.');
+                return;
+            }
             await addNewCharacter(playerSelect, characterNameInput, itemLevelInput, classSelect);
             await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
         });
@@ -1304,11 +1328,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('update-character-btn')?.addEventListener('click', async () => {
             const characterNameInput = document.getElementById('character-name-input');
             const itemLevelInput = document.getElementById('item-level-input');
+            if (!characterSelect.value || !characterNameInput.value || !itemLevelInput.value) {
+                alert('Please select a character and provide updated details.');
+                return;
+            }
             await updateCharacterDetails(characterSelect, characterNameInput, itemLevelInput);
             await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
         });
 
         document.getElementById('delete-character-btn')?.addEventListener('click', async () => {
+            if (!characterSelect.value) {
+                alert('Please select a character to delete.');
+                return;
+            }
             await deleteCharacterFromPlayer(characterSelect);
             await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
         });
