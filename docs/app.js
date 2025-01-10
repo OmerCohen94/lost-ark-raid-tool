@@ -113,11 +113,16 @@ const fetchPlayersForGroup = async (group_id) => {
 // Attach click event
 document.getElementById('create-raid-btn')?.addEventListener('click', async () => {
     const raidSelect = document.getElementById('raid-select');
-    const selectedOption = raidSelect.options[raidSelect.selectedIndex];
+    if (!raidSelect) {
+        console.error('Raid select dropdown is missing');
+        alert('Please ensure the raid dropdown is loaded.');
+        return;
+    }
 
+    const selectedOption = raidSelect.options[raidSelect.selectedIndex];
     if (!selectedOption || !selectedOption.value) {
         console.error('No raid selected');
-        alert('Please select a raid before creating a group.');
+        alert('Please select a raid to create a group.');
         return;
     }
 
