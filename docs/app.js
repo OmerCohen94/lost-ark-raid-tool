@@ -80,6 +80,7 @@ const fetchPlayersForGroup = async (group_id) => {
     }
 
     try {
+        // Fetch the raid ID and minimum item level for the group
         const { data: group, error: groupError } = await supabase
             .from('groups')
             .select('raid_id, min_item_level')
@@ -93,12 +94,16 @@ const fetchPlayersForGroup = async (group_id) => {
 
         const { raid_id, min_item_level } = group;
 
+        // Fetch players and their characters
         const { data: players, error: playersError } = await supabase
             .from('players')
             .select(`
                 id,
                 username,
-                characters (id, item_level)
+                characters (
+                    id,
+                    item_level
+                )
             `);
 
         if (playersError) {
@@ -106,16 +111,41 @@ const fetchPlayersForGroup = async (group_id) => {
             return { error: 'Error fetching players' };
         }
 
-        const eligiblePlayers = players.map(player => {
-            const hasEligibleCharacters = player.characters.some(
+        // Calculate eligible players
+        const eligiblePlayers = [];
+        for (const player of players) {
+            const eligibleCharacters = player.characters.filter(
                 char => char.item_level >= min_item_level
             );
 
-            return {
-                ...player,
-                has_eligible_characters: hasEligibleCharacters,
-            };
-        });
+            if (eligibleCharacters.length > 0) {
+                const assignedCharacters = await supabase
+                    .from('group_members')
+                    .select('character_id')
+                    .in('character_id', eligibleCharacters.map(char => char.id))
+                    .eq('group_id.raid_id', raid_id);
+
+                if (!assignedCharacters.data || assignedCharacters.data.length === 0) {
+                    eligiblePlayers.push({
+                        id: player.id,
+                        username: player.username,
+                        has_eligible_characters: true,
+                    });
+                } else {
+                    eligiblePlayers.push({
+                        id: player.id,
+                        username: player.username,
+                        has_eligible_characters: false,
+                    });
+                }
+            } else {
+                eligiblePlayers.push({
+                    id: player.id,
+                    username: player.username,
+                    has_eligible_characters: false,
+                });
+            }
+        }
 
         return eligiblePlayers;
     } catch (error) {
@@ -1091,10 +1121,10 @@ async function loadExistingGroups(raid_id = null) {
 
             const playerSelects = groupDiv.querySelectorAll('.player-select');
             for (const select of playerSelects) {
-                await populatePlayerDropdown(group.id, select); // Ensure populate logic is correct
+                await populatePlayerDropdown(group.id, select);
             }
 
-            restoreDropdownSelections(group.id);
+            await restoreDropdownSelections(group.id);
         }
     } catch (error) {
         console.error('Error loading groups:', error);
