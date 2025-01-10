@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Player / Character</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="styles.css"> <!-- Link to your CSS file -->
+</head>
+<body>
+
+<header>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="index.html">Raid Organizer</a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+                <li class="nav-item active"><a class="nav-link" href="add-player.html">Add Player / Character</a></li>
+            </ul>
+        </div>
+    </nav>
+</header>
+
+<div class="container mt-4">
+    <h1 class="mb-4">Add / Manage Player and Character</h1>
+
+    <div id="player-form" class="bg-white p-4 rounded shadow-sm mb-4">
+        <h2>Add Player</h2>
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" class="form-control" placeholder="Enter Username" required>
+        </div>
+        <button id="add-player-btn" type="button" class="btn btn-primary">Add Player</button>
+        <span id="player-message" class="mt-2 d-block text-success"></span> <!-- Message display for player addition -->
+    </div>
+
+    <div id="character-form" class="bg-white p-4 rounded shadow-sm">
+        <h2>Manage Character</h2>
+        <div class="form-group">
+            <label for="player-select">Select Player:</label>
+            <select id="player-select" class="form-control">
+                <option value="" disabled selected>Select Player</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="character-name">Character Name:</label>
+            <input type="text" id="character-name" class="form-control" placeholder="Character Name" required>
+        </div>
+        <div class="form-group">
+            <label for="item-level">Item Level:</label>
+            <input type="number" id="item-level" class="form-control" placeholder="Item Level" required>
+        </div>
+        <div class="form-group">
+            <label for="class-select">Select Class:</label>
+            <select id="class-select" class="form-control">
+                <option value="" disabled selected>Select Class</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="character-select">Select Character:</label>
+            <select id="character-select" class="form-control">
+                <option value="" disabled selected>Select Character</option>
+            </select>
+        </div>
+        <button id="add-character-btn" type="button" class="btn btn-primary">Add Character</button>
+        <button id="update-character-btn" type="button" class="btn btn-warning">Update Character</button>
+        <button id="delete-character-btn" type="button" class="btn btn-danger">Delete Character</button>
+        <span id="character-message" class="mt-2 d-block text-success"></span> <!-- Message display for character addition -->
+    </div>
+</div>
+
+
+<script src="app.js"></script>
+<noscript>You need to enable JavaScript to view the full site.</noscript>
+
+</body>
+</html>

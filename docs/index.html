@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lost Ark Raid Organizer</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <a class="navbar-brand" href="#">Raid Organizer</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="add-player.html">Add Player / Character</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container mt-4">
+        <h1>Lost Ark Raid Organizer</h1>
+
+        <div id="raid-organizer" class="bg-white p-4 rounded shadow-sm">
+            <h2>Raid Organizer</h2>
+
+            <div class="form-group">
+                <label for="raid-select">Select Raid:</label>
+                <select id="raid-select" class="form-control">
+                    <option value="" disabled selected>Select Raid</option>
+                    <!-- Options will be dynamically populated -->
+                </select>
+            </div>
+            
+            <button id="create-group-btn" onclick="createGroup()" class="btn btn-success">Create Group</button>
+
+            <div id="groups-container" class="mt-4">
+                <h2>Existing Raid Groups</h2>
+                <!-- Existing groups will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+    <noscript>You need to enable JavaScript to view the full site.</noscript>
+</body>
+</html>
