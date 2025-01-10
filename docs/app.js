@@ -1,7 +1,9 @@
 
 const SUPABASE_URL = 'https://jlqfmqfhsyxxsbteykxz.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpscWZtcWZoc3l4eHNidGV5a3h6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY1MzQ0NDUsImV4cCI6MjA1MjExMDQ0NX0.yU6iCVBt_-2lW0WkSNEmcGKyz_R7rN77IRB-ZggH-vE';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 
 // Query to get groups
 const fetchGroupsWithSlots = async () => {
@@ -449,7 +451,6 @@ const fetchAllClasses = async () => {
         return { error: 'Unexpected server error' };
     }
 };
-
 
 // Query to create a new character
 const createCharacter = async (player_id, name, item_level, class_id) => {
