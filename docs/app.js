@@ -70,9 +70,9 @@ const createGroup = async (raid_id, min_item_level) => {
         const raidName = raid.name;
 
         // Count existing groups for the raid
-        const { data: groupCount, error: countError } = await supabase
+        const { count: groupCount, error: countError } = await supabase
             .from('groups')
-            .select('id', { count: 'exact' })
+            .select('*', { count: 'exact' })
             .eq('raid_id', raid_id);
 
         if (countError) {
@@ -80,7 +80,7 @@ const createGroup = async (raid_id, min_item_level) => {
             return { error: 'Error counting groups' };
         }
 
-        const nextGroupNumber = groupCount || 0 + 1;
+        const nextGroupNumber = groupCount + 1;
         const groupName = `Group ${nextGroupNumber}`;
 
         // Insert the new group
