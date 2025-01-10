@@ -391,13 +391,19 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
                 classes ( name ),
                 group_members ( group_id )
             `)
-            .eq('player_id', player_id)
-            .order('classes.name', { ascending: true });
+            .eq('player_id', player_id);
 
         if (charactersError) {
             console.error('Error fetching characters:', charactersError);
             return { error: 'Error fetching characters' };
         }
+
+        // Sort the characters by class name manually
+        characters.sort((a, b) => {
+            const nameA = a.classes?.name || '';
+            const nameB = b.classes?.name || '';
+            return nameA.localeCompare(nameB);
+        });
 
         // Handle assignments if group_id is provided
         if (group_id) {
