@@ -576,6 +576,11 @@ async function restoreDropdownSelections(groupId) {
     if (!savedSelections) return;
 
     const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+    if (!groupElement) {
+        console.error(`Group element for groupId ${groupId} not found.`);
+        return;
+    }
+
     const playerSelects = groupElement.querySelectorAll('.player-select');
     const characterSelects = groupElement.querySelectorAll('.character-select');
 
@@ -588,14 +593,19 @@ async function restoreDropdownSelections(groupId) {
 
         // Restore player selection
         if (selection.player) {
-            await populatePlayerDropdown(groupId, playerSelect);
-            playerSelect.value = selection.player;
-            playerSelect.dispatchEvent(new Event('change'));
+            await populatePlayerDropdown(groupId, playerSelect, selection.player);
+
+            if (playerSelect.value !== selection.player) {
+                console.warn(`Preselected player ${selection.player} is no longer available.`);
+            } else {
+                playerSelect.dispatchEvent(new Event('change')); // Trigger change event if selection is valid
+            }
         }
 
         // Restore character selection
         if (selection.character) {
             const characters = await fetchCharactersForPlayer(selection.player, groupId);
+
             if (!characters.error) {
                 characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
                 characters.forEach(character => {
@@ -610,7 +620,13 @@ async function restoreDropdownSelections(groupId) {
 
                     characterSelect.appendChild(option);
                 });
+
                 characterSelect.value = selection.character;
+
+                if (characterSelect.value !== selection.character) {
+                    console.warn(`Preselected character ${selection.character} is no longer available.`);
+                }
+
                 characterSelect.disabled = false;
             } else {
                 console.error(`Error fetching characters for player ${selection.player}:`, characters.error);
