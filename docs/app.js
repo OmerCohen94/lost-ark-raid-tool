@@ -93,13 +93,31 @@ const fetchPlayersForGroup = async (group_id) => {
 
         const { raid_id, min_item_level } = group;
 
-        const players = await getEligiblePlayers(min_item_level, raid_id);
-        if (players.error) {
-            console.error('Error fetching eligible players:', players.error);
-            return { error: 'Error fetching eligible players' };
+        const { data: players, error: playersError } = await supabase
+            .from('players')
+            .select(`
+                id,
+                username,
+                characters (id, item_level)
+            `);
+
+        if (playersError) {
+            console.error('Error fetching players:', playersError);
+            return { error: 'Error fetching players' };
         }
 
-        return players;
+        const eligiblePlayers = players.map(player => {
+            const hasEligibleCharacters = player.characters.some(
+                char => char.item_level >= min_item_level
+            );
+
+            return {
+                ...player,
+                has_eligible_characters: hasEligibleCharacters,
+            };
+        });
+
+        return eligiblePlayers;
     } catch (error) {
         console.error('Unexpected error fetching players:', error);
         return { error: 'Unexpected server error' };
@@ -727,23 +745,18 @@ async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId
                 playerSelect.appendChild(option);
             });
 
-            // Restore preselected player
-            if (preselectedPlayerId && players.some(player => player.id === preselectedPlayerId)) {
+            if (preselectedPlayerId) {
                 playerSelect.value = preselectedPlayerId;
-            } else if (preselectedPlayerId) {
-                console.warn('Preselected player not found or no longer eligible');
             }
 
             playerSelect.disabled = false;
         } else {
             console.error('Error fetching players:', players.error);
             playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
-            playerSelect.disabled = true;
         }
     } catch (error) {
         console.error('Unexpected error populating player dropdown:', error);
         playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
-        playerSelect.disabled = true;
     }
 }
 
