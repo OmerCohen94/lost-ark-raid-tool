@@ -999,6 +999,55 @@ async function saveGroupMembers(groupId, members) {
     }
 }
 
+// Function to handle player selection
+async function handlePlayerSelection(playerSelect) {
+    const groupElement = playerSelect.closest('.raid-group');
+    const groupId = groupElement.getAttribute('data-group-id');
+    const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
+
+    if (!playerSelect.value) {
+        // Clear and disable the character dropdown if no player is selected
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+        characterSelect.disabled = true;
+        return;
+    }
+
+    try {
+        // Fetch characters for the selected player and group
+        const characters = await fetchCharactersForPlayer(playerSelect.value, groupId);
+
+        if (!characters.error) {
+            characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>'; // Reset options
+            characters.forEach(character => {
+                const option = document.createElement('option');
+                option.value = character.id;
+                option.textContent = `${character.classes.name} (${character.item_level})`;
+
+                if (character.assigned_to_group) {
+                    option.textContent += ` - Assigned to ${character.assigned_to_group}`;
+                    option.disabled = true;
+                }
+
+                characterSelect.appendChild(option);
+            });
+
+            characterSelect.disabled = false; // Enable the dropdown
+        } else {
+            console.error('Error fetching characters:', characters.error);
+            characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+            characterSelect.disabled = true;
+        }
+    } catch (error) {
+        console.error('Unexpected error fetching characters:', error);
+        characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+        characterSelect.disabled = true;
+    }
+}
+
+// Expose the function globally
+window.handlePlayerSelection = handlePlayerSelection;
+
+
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raid_id = null) {
     try {
