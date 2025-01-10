@@ -742,27 +742,70 @@ async function updateCharacterOptions(playerSelect, characterSelect, groupId) {
 }
 
 // Function to create a raid group SUPABASE
-async function createRaidGroup(raidId, minItemLevel) {
-    if (!raidId || !minItemLevel) {
+const createRaidGroup = async (raid_id, min_item_level) => {
+    if (!raid_id || !min_item_level) {
         console.error('Raid ID and minimum item level are required');
         return { error: 'Raid ID and minimum item level are required' };
     }
 
     try {
-        const result = await createGroup(raidId, minItemLevel);
+        // Fetch the raid name
+        const { data: raid, error: raidError } = await supabase
+            .from('raids')
+            .select('name')
+            .eq('id', raid_id)
+            .single();
 
-        if (result.error) {
-            console.error('Error creating raid group:', result.error);
-            return { error: result.error };
+        if (raidError || !raid) {
+            console.error('Error fetching raid:', raidError || 'Raid not found');
+            return { error: 'Raid not found' };
         }
 
-        console.log('Raid group created successfully:', result);
-        return result; // Return the created group object for further use
+        const raidName = raid.name;
+
+        // Count existing groups for the raid
+        const { count: groupCount, error: countError } = await supabase
+            .from('groups')
+            .select('*', { count: 'exact' })
+            .eq('raid_id', raid_id);
+
+        if (countError) {
+            console.error('Error counting groups:', countError);
+            return { error: 'Error counting groups' };
+        }
+
+        const nextGroupNumber = groupCount + 1;
+        const groupName = `Group ${nextGroupNumber}`;
+
+        // Insert the new group
+        const { data: newGroup, error: insertError } = await supabase
+            .from('groups')
+            .insert([
+                {
+                    raid_id,
+                    group_name: groupName,
+                    min_item_level,
+                },
+            ])
+            .select('id')
+            .single();
+
+        if (insertError || !newGroup) {
+            console.error('Error creating group:', insertError);
+            return { error: 'Error creating group' };
+        }
+
+        return {
+            id: newGroup.id,
+            group_name: groupName,
+            raid_name: raidName,
+            min_item_level,
+        };
     } catch (error) {
-        console.error('Unexpected error creating raid group:', error);
+        console.error('Unexpected error creating group:', error);
         return { error: 'Unexpected server error' };
     }
-}
+};
 
 // Function to delete a raid group SUPABASE
 async function deleteRaidGroup(groupId) {
