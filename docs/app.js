@@ -693,7 +693,7 @@ async function populateRaidDropdown() {
     try {
         const { data: raids, error } = await supabase
             .from('raids')
-            .select('id, name, min_item_level');
+            .select('id, name, min_item_level'); // Use the correct column names
 
         if (error) {
             console.error('Error fetching raids:', error);
@@ -704,9 +704,9 @@ async function populateRaidDropdown() {
 
         raids.forEach(raid => {
             const option = document.createElement('option');
-            option.value = raid.id; // Set the raid ID as the option value
+            option.value = raid.id; // Use the raid ID as the value
             option.setAttribute('data-min-ilvl', raid.min_item_level); // Store min item level as a data attribute
-            option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
+            option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`; // Use the raid name
             raidSelect.appendChild(option);
         });
     } catch (error) {
@@ -763,7 +763,7 @@ const createRaidGroup = async (raid_id, min_item_level) => {
     }
 
     try {
-        // Fetch the raid name
+        // Fetch the raid name using the correct column name
         const { data: raid, error: raidError } = await supabase
             .from('raids')
             .select('name')
@@ -804,7 +804,7 @@ const createRaidGroup = async (raid_id, min_item_level) => {
             .select('id')
             .single();
 
-        if (insertError) {
+        if (insertError || !newGroup) {
             console.error('Error creating group:', insertError);
             return { error: 'Error creating group' };
         }
