@@ -972,7 +972,6 @@ async function saveGroupMembers(groupId, members) {
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raid_id = null) {
     try {
-        // Fetch groups with or without filtering by raid_id
         const groups = await fetchGroupsWithSlots(raid_id);
 
         if (groups.error) {
@@ -991,7 +990,6 @@ async function loadExistingGroups(raid_id = null) {
             const groupHeader = document.createElement('div');
             groupHeader.classList.add('d-flex', 'justify-content-between', 'align-items-center');
 
-            // Group Header with Raid Name and Slots Count
             const headerText = document.createElement('h3');
             headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
 
@@ -1091,24 +1089,11 @@ async function loadExistingGroups(raid_id = null) {
             groupDiv.appendChild(table);
             groupsContainer.appendChild(groupDiv);
 
-            // Populate dropdowns for players and restore selections
             const playerSelects = groupDiv.querySelectorAll('.player-select');
-            const restorePromises = [];
-            playerSelects.forEach((select, index) => {
-                const savedSelections = localStorage.getItem(`group_${group.id}_selections`);
-                const savedSelection = savedSelections ? JSON.parse(savedSelections)[index]?.player : null;
+            for (const select of playerSelects) {
+                await populatePlayerDropdown(group.id, select); // Ensure populate logic is correct
+            }
 
-                const restorePromise = populatePlayerDropdown(group.id, select).then(() => {
-                    if (savedSelection) {
-                        select.value = savedSelection;
-                        handlePlayerSelection(select);
-                    }
-                });
-                restorePromises.push(restorePromise);
-            });
-
-            // Restore saved selections after all dropdowns are populated
-            await Promise.all(restorePromises);
             restoreDropdownSelections(group.id);
         }
     } catch (error) {
