@@ -903,9 +903,10 @@ async function saveGroupMembers(groupId, members) {
 }
 
 // Function to load existing groups SUPABASE
-async function loadExistingGroups() {
+async function loadExistingGroups(raid_id = null) {
     try {
-        const groups = await fetchGroupsWithSlots();
+        // Fetch groups with or without filtering by raid_id
+        const groups = await fetchGroupsWithSlots(raid_id);
 
         if (groups.error) {
             console.error('Error loading groups:', groups.error);
@@ -958,7 +959,7 @@ async function loadExistingGroups() {
             deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
             deleteButton.onclick = async () => {
                 await deleteRaidGroup(group.id);
-                await loadExistingGroups();
+                await loadExistingGroups(raid_id);
             };
 
             groupHeader.appendChild(headerText);
@@ -1276,10 +1277,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (raidSelect) {
         // Raid Organizer Page
         populateRaidDropdown();
+        loadExistingGroups(); // Load groups initially
 
-        // Load existing groups after dropdown population
+        // Load existing groups based on raid selection
         raidSelect.addEventListener('change', async () => {
-            await loadExistingGroups(); // Refresh the groups when a raid is selected
+            const selectedRaidId = raidSelect.value || null; // Handle all groups if no selection
+            await loadExistingGroups(selectedRaidId); // Refresh the groups
         });
 
         document.getElementById('create-raid-btn')?.addEventListener('click', async () => {
