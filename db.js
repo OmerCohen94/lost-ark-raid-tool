@@ -1,15 +1,14 @@
 const { Pool } = require('pg');
 
-// Create a new pool instance with your database configuration
-const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'raid_tool',
-    password: 'ETNERPASSRNIWANISA',
-    port: 5432, // Default PostgreSQL port
+const db = new Pool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT || 5432,
+    ssl: {
+        rejectUnauthorized: false,
+    },
 });
 
-// Export the pool to use it in other files
-module.exports = {
-    query: (text, params) => pool.query(text, params),
-};
+module.exports = db;
