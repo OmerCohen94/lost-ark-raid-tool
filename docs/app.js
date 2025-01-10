@@ -80,38 +80,23 @@ const fetchPlayersForGroup = async (group_id) => {
     }
 
     try {
-        // Fetch the raid ID and minimum item level for the group
         const { data: group, error: groupError } = await supabase
             .from('groups')
             .select('raid_id, min_item_level')
             .eq('id', group_id)
             .single();
 
-        if (groupError) {
-            console.error('Error fetching group:', groupError);
-            return { error: 'Error fetching group' };
-        }
-
-        if (!group) {
-            console.error('Group not found');
+        if (groupError || !group) {
+            console.error('Error fetching group:', groupError || 'Group not found');
             return { error: 'Group not found' };
         }
 
         const { raid_id, min_item_level } = group;
 
-        // Validate retrieved values
-        if (!raid_id || min_item_level === null || min_item_level === undefined) {
-            console.error('Invalid raid ID or minimum item level retrieved from group');
-            return { error: 'Invalid raid ID or minimum item level' };
-        }
-
-        // Fetch players with eligible characters for the raid
-        const { data: players, error: playersError } = await supabase
-            .rpc('get_eligible_players', { min_item_level, raid_id });
-
-        if (playersError) {
-            console.error('Error fetching players:', playersError);
-            return { error: 'Error fetching players' };
+        const players = await getEligiblePlayers(min_item_level, raid_id);
+        if (players.error) {
+            console.error('Error fetching eligible players:', players.error);
+            return { error: 'Error fetching eligible players' };
         }
 
         return players;
@@ -532,6 +517,50 @@ const fetchAllCharacters = async () => {
         return characters;
     } catch (error) {
         console.error('Unexpected error fetching all characters:', error);
+        return { error: 'Unexpected server error' };
+    }
+};
+
+//Function to get eligible players
+const getEligiblePlayers = async (min_item_level, raid_id) => {
+    try {
+        // Fetch all players with characters meeting the minimum item level
+        const { data: players, error: playersError } = await supabase
+            .from('players')
+            .select('id, username, characters (id, item_level)')
+            .filter('characters.item_level', 'gte', min_item_level);
+
+        if (playersError) {
+            console.error('Error fetching players:', playersError);
+            return { error: 'Error fetching players' };
+        }
+
+        // Filter out players whose characters are already assigned to the specified raid
+        const eligiblePlayers = [];
+        for (const player of players) {
+            const { data: assignments, error: assignmentsError } = await supabase
+                .from('group_members')
+                .select('character_id')
+                .in('character_id', player.characters.map(char => char.id))
+                .eq('group_id.raid_id', raid_id);
+
+            if (assignmentsError) {
+                console.error('Error fetching assignments:', assignmentsError);
+                continue;
+            }
+
+            // If no characters are assigned, add the player to the eligible list
+            if (!assignments.length) {
+                eligiblePlayers.push({
+                    id: player.id,
+                    username: player.username,
+                });
+            }
+        }
+
+        return eligiblePlayers;
+    } catch (error) {
+        console.error('Unexpected error fetching eligible players:', error);
         return { error: 'Unexpected server error' };
     }
 };
