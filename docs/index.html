@@ -44,14 +44,14 @@
             
             <div class="form-group">
                 <label for="raid-select">Select Raid:</label>
-                <select id="raid-select" class="form-control" onchange="setMinItemLevel()">
+                <select id="raid-select" class="form-control">
                     <option value="" disabled selected>Select Raid</option>
                     <!-- Options will be dynamically populated -->
                 </select>
             </div>
-            <button id="create-raid-btn" onclick="createRaidGroup()">Create Group</button>
+            <button id="create-raid-btn" class="btn btn-primary" onclick="createRaidGroup()">Create Group</button>
             
-
+            
             <div id="groups-container" class="mt-4">
                 <h2>Existing Raid Groups</h2>
                 <!-- Existing groups will be dynamically inserted here -->
