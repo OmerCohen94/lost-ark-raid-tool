@@ -1072,7 +1072,14 @@ async function loadCharactersForPlayer(playerId, characterSelect) {
 }
 
 // Function to add a new player in add players page SUPABASE
-async function addNewPlayer(usernameInput) {
+async function addNewPlayer() {
+    const usernameInput = document.getElementById('username-input');
+    if (!usernameInput) {
+        console.error('Username input field not found');
+        alert('Error: Username input field is missing!');
+        return;
+    }
+
     const username = usernameInput.value.trim();
 
     if (!username) {
