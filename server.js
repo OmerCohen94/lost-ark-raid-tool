@@ -12,7 +12,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Serve static files from a specified path (e.g., ./public)
-const staticPath = path.resolve('./public');
+const staticPath = path.resolve('./docs');
 app.use(express.static(staticPath));
 
 // Mount the groups router under the /api path
