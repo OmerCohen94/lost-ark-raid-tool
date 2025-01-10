@@ -175,7 +175,7 @@ const fetchPlayersForGroup = async (group_id) => {
 };
 
 // Query to get raids
-const fetchRaids = async () => {
+window.fetchRaids = async () => {
     try {
         // Fetch all raids from the database
         const { data: raids, error } = await supabase
