@@ -712,18 +712,22 @@ async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId
             });
 
             // Restore preselected player
-            if (preselectedPlayerId) {
+            if (preselectedPlayerId && players.some(player => player.id === preselectedPlayerId)) {
                 playerSelect.value = preselectedPlayerId;
+            } else if (preselectedPlayerId) {
+                console.warn('Preselected player not found or no longer eligible');
             }
 
             playerSelect.disabled = false;
         } else {
             console.error('Error fetching players:', players.error);
             playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
+            playerSelect.disabled = true;
         }
     } catch (error) {
         console.error('Unexpected error populating player dropdown:', error);
         playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
+        playerSelect.disabled = true;
     }
 }
 
