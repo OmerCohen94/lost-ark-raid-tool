@@ -117,13 +117,28 @@ function clearGroupsCache(raidId = null) {
 }
 
 // Function to get eligible characters
-async function fetchEligibleCharacters(playerId, raidId) {
+async function fetchEligibleCharacters(playerId, groupId) {
     try {
+        // Fetch the group to determine raid_id
+        const { data: group, error: groupError } = await supabase
+            .from('groups')
+            .select('raid_id')
+            .eq('id', groupId)
+            .single();
+
+        if (groupError || !group) {
+            console.error('Error fetching group details for eligibility:', groupError || 'Group not found');
+            return [];
+        }
+
+        const raidId = group.raid_id;
+
+        // Query eligible_characters view using the correct raid_id
         const { data, error } = await supabase
             .from('eligible_characters')
             .select('*')
             .eq('player_id', playerId)
-            .eq('raid_id', raidId); // Include raid_id filter
+            .eq('raid_id', raidId); // Use raid_id from the group
 
         if (error) {
             console.error('Error fetching eligible characters:', error);
@@ -646,18 +661,11 @@ function initializePlayerAndCharacterListeners() {
 
 // Function to populate characters in a dropdown SUPABASE
 async function populateCharacterDropdown(playerId, groupId, characterSelect) {
-    if (!playerId || !groupId) {
-        console.error('Player ID and Group ID are required');
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        characterSelect.disabled = true;
-        return;
-    }
-
     try {
         const characters = await fetchEligibleCharacters(playerId, groupId);
 
         if (!characters || characters.length === 0) {
-            console.warn(`No eligible characters found for player ${playerId} in group ${groupId}`);
+            console.warn(`No eligible characters found for Player: ${playerId}, Group: ${groupId}`);
             characterSelect.innerHTML = '<option value="" disabled>No eligible characters</option>';
             characterSelect.disabled = true;
             return;
@@ -683,7 +691,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
 
         characterSelect.disabled = false;
     } catch (error) {
-        console.error('Unexpected error populating character dropdown:', error);
+        console.error('Error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
         characterSelect.disabled = true;
     }
