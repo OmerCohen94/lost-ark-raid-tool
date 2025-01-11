@@ -833,18 +833,24 @@ async function resetGroup(groupId) {
     }
 
     try {
-        // Clear group members in the database
-        const { error } = await supabase
-            .from('group_members')
-            .delete()
-            .eq('group_id', groupId);
+// Clear group members in the database
+if (!groupId) {
+    console.error('Invalid group ID. Cannot clear group members.');
+    return { error: 'Invalid group ID' };
+}
 
-        if (error) {
-            console.error('Error clearing group members:', error);
-            return { error: 'Error clearing group members' };
-        }
+const { error } = await supabase
+    .from('group_members')
+    .delete()
+    .eq('group_id', groupId);
 
-        console.log('Group members cleared successfully');
+if (error) {
+    console.error('Error clearing group members:', error);
+    return { error: 'Error clearing group members' };
+}
+
+console.log(`Group members for group ID ${groupId} cleared successfully.`);
+
 
         // Reset dropdowns in the UI
         const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
