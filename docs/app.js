@@ -179,8 +179,8 @@ async function fetchGroupsWithSlots(raidId = null) {
                 group_name,
                 min_item_level,
                 raid_id,
-                raids (name), -- Fetch the raid name
-                group_members (id) -- Fetch members to calculate slots
+                raids (name),
+                group_members (id)
             `);
 
         if (raidId) query.eq('raid_id', raidId);
@@ -195,8 +195,8 @@ async function fetchGroupsWithSlots(raidId = null) {
         // Calculate slots for each group
         const groupsWithSlots = data.map(group => ({
             ...group,
-            raid_name: group.raids?.name || 'Unknown Raid', // Default if raid name is missing
-            filled_slots: group.group_members.length || 0, // Count members
+            raid_name: group.raids?.name || 'Unknown Raid',
+            filled_slots: group.group_members.length || 0,
             total_slots: 8, // Assuming 8 slots per group
         }));
 
