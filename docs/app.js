@@ -216,45 +216,6 @@ async function fetchPlayersForGroup(groupId) {
     }
 }
 
-// Attach click event
-document.getElementById('create-raid-btn')?.addEventListener('click', async () => {
-    const raidSelect = document.getElementById('raid-select');
-    if (!raidSelect) {
-        console.error('Raid select dropdown is missing');
-        alert('Please ensure the raid dropdown is loaded.');
-        return;
-    }
-
-    const selectedOption = raidSelect.options[raidSelect.selectedIndex];
-    if (!selectedOption || !selectedOption.value) {
-        console.error('No raid selected');
-        alert('Please select a raid to create a group.');
-        return;
-    }
-
-    const raid_id = selectedOption.value;
-    const min_item_level = selectedOption.getAttribute('data-min-ilvl');
-
-    if (!raid_id || !min_item_level) {
-        console.error('Invalid raid selection or missing minimum item level');
-        alert('Error: Unable to determine raid ID or minimum item level.');
-        return;
-    }
-
-    try {
-        const result = await createRaidGroup(raid_id, parseInt(min_item_level, 10));
-        if (result.error) {
-            alert(`Error: ${result.error}`);
-        } else {
-            await loadExistingGroups(); // Refresh the groups
-        }
-    } catch (error) {
-        console.error('Unexpected error creating group:', error);
-        alert('Unexpected error creating group.');
-    }
-});
-
-
 // Query to get members of specific group
 function collectGroupMembers(groupElement) {
     if (!groupElement) {
@@ -1497,13 +1458,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadExistingGroups(selectedRaidId);
         });
 
-        document.getElementById('create-raid-btn')?.addEventListener('click', async () => {
+        document.getElementById('create-raid-btn')?.addEventListener('click', async (event) => {
+            event.preventDefault(); // Prevent default behavior and multiple event triggers
+        
             const raidSelect = document.getElementById('raid-select');
+            const createButton = event.target; // Reference the clicked button
             const selectedOption = raidSelect.options[raidSelect.selectedIndex];
-            const createButton = document.getElementById('create-raid-btn');
+        
+            // Disable the button to prevent duplicate clicks
+            createButton.disabled = true;
         
             if (!selectedOption || !selectedOption.value) {
+                console.error('Please select a raid to create a group.');
                 alert('Please select a raid to create a group.');
+                createButton.disabled = false; // Re-enable the button
                 return;
             }
         
@@ -1511,31 +1479,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             const minItemLevel = selectedOption.getAttribute('data-min-ilvl');
         
             if (!raidId || !minItemLevel) {
+                console.error('Invalid raid selection or missing minimum item level.');
                 alert('Invalid raid selection or missing minimum item level.');
+                createButton.disabled = false; // Re-enable the button
                 return;
             }
         
             try {
-                // Disable the button to prevent duplicate submissions
-                createButton.disabled = true;
                 createButton.textContent = 'Creating...';
         
-                console.log(`Creating group for Raid ID: ${raidId}, Min IL: ${minItemLevel}`);
                 const result = await createRaidGroup(raidId, parseInt(minItemLevel, 10));
         
                 if (result.error) {
+                    console.error(`Error creating group: ${result.error}`);
                 } else {
-                    await loadExistingGroups(); // Refresh the groups
+                    await loadExistingGroups();
                 }
             } catch (error) {
                 console.error('Unexpected error creating group:', error);
-                alert('Unexpected error creating group.');
             } finally {
-                // Re-enable the button after the process is complete
+                // Re-enable the button and reset its text
                 createButton.disabled = false;
                 createButton.textContent = 'Create Raid Group';
             }
         });
+        
         
     }
 
