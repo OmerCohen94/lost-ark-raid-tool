@@ -43,32 +43,41 @@ async function loadClassesDropdown(dropdownElement) {
 }
 
 // Function to load raids into dropdowns
-async function loadRaidsDropdown(dropdownElement) {
-    // Fetch raid data from Supabase Storage
-    const raids = await fetchFromStorage('raids.json'); // Replace with your file path in the Supabase bucket
-
-    if (!raids) {
-        dropdownElement.innerHTML = '<option value="" disabled>Error loading raids</option>';
-        return;
+async function fetchRaids() {
+    // Check in-memory cache first
+    if (cache.raids) {
+        console.log('Using cached raids');
+        return cache.raids;
     }
 
-    // Reset the dropdown and add a default "Select Raid" option
-    dropdownElement.innerHTML = '<option value="" disabled selected>Select Raid</option>';
+    // Check localStorage cache
+    const storedRaids = localStorage.getItem('raids');
+    if (storedRaids) {
+        console.log('Using raids from localStorage');
+        cache.raids = JSON.parse(storedRaids);
+        return cache.raids;
+    }
 
-    // Populate the dropdown with options
-    raids.forEach(raid => {
-        const option = document.createElement('option');
-        option.value = raid.id; // Set the raid ID as the value
-        option.setAttribute('data-min-ilvl', raid.min_item_level); // Add the minimum item level as an attribute
-        option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`; // Display the raid name and minimum item level
-        dropdownElement.appendChild(option);
-    });
+    try {
+        // Fetch raids from Supabase Storage
+        const raids = await fetchFromStorage('raids.json');
+        if (raids) {
+            cache.raids = raids; // Cache in memory
+            localStorage.setItem('raids', JSON.stringify(raids)); // Persist to localStorage
+        }
+        return raids || [];
+    } catch (error) {
+        console.error('Error fetching raids:', error);
+        return [];
+    }
 }
 
 // Cache
 const cache = {
-    players: new Map(), // Cache for players by groupId
-    characters: new Map() // Cache for characters by playerId and groupId
+    players: new Map(),
+    characters: new Map(),
+    raids: null, 
+    groups: new Map(), 
 };
 
 // Clear players cache
@@ -124,6 +133,27 @@ async function fetchEligibleCharacters(playerId, groupId) {
         return data;
     } catch (error) {
         console.error('Unexpected error fetching eligible characters:', error);
+        return [];
+    }
+}
+
+// Get raids from cache
+async function fetchRaids() {
+    // Check in-memory cache
+    if (cache.raids) {
+        console.log('Using cached raids');
+        return cache.raids;
+    }
+
+    try {
+        const raids = await fetchFromStorage('raids.json'); // Load from Supabase Storage
+        if (raids) {
+            cache.raids = raids; // Store in memory
+            localStorage.setItem('raids', JSON.stringify(raids)); // Persist in localStorage
+        }
+        return raids || [];
+    } catch (error) {
+        console.error('Error fetching raids:', error);
         return [];
     }
 }
@@ -351,6 +381,70 @@ const deleteGroup = async (group_id) => {
         return { error: 'Unexpected server error' };
     }
 };
+
+// da fuck
+async function loadRaidsDropdown(raidSelect) {
+    // Check in-memory cache first
+    if (cache.raids) {
+        console.log('Using cached raids');
+        populateRaidDropdown(raidSelect, cache.raids);
+        return;
+    }
+
+    try {
+        const raids = await fetchFromStorage('raids.json'); // Fetch from Supabase Storage
+        if (raids) {
+            cache.raids = raids; // Store in cache
+            localStorage.setItem('raids', JSON.stringify(raids)); // Persist to localStorage
+            populateRaidDropdown(raidSelect, raids); // Populate dropdown
+        } else {
+            raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
+        }
+    } catch (error) {
+        console.error('Error loading raids:', error);
+        raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
+    }
+}
+
+// Helper function to populate the dropdown
+function populateRaidDropdown(raidSelect, raids) {
+    raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>';
+    raids.forEach(raid => {
+        const option = document.createElement('option');
+        option.value = raid.id;
+        option.setAttribute('data-min-ilvl', raid.min_item_level);
+        option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
+        raidSelect.appendChild(option);
+    });
+}
+
+// da fuck 2
+async function fetchGroupsForRaid(raidId) {
+    // Check cache first
+    if (cache.groups && cache.groups.has(raidId)) {
+        console.log(`Using cached groups for Raid ID: ${raidId}`);
+        return cache.groups.get(raidId);
+    }
+
+    try {
+        const { data: groups, error } = await supabase
+            .from('groups')
+            .select('*')
+            .eq('raid_id', raidId);
+
+        if (error) {
+            console.error('Error fetching groups:', error);
+            return [];
+        }
+
+        cache.groups.set(raidId, groups); // Cache the groups in memory
+        return groups;
+    } catch (error) {
+        console.error('Unexpected error fetching groups:', error);
+        return [];
+    }
+}
+
 
 // Query to get players for add page
 const fetchAllPlayers = async () => {
@@ -739,6 +833,21 @@ async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId
     } catch (error) {
         console.error('Unexpected error populating player dropdown:', error);
         playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
+    }
+}
+
+// Clear raid cache
+function clearRaidsCache() {
+    cache.raids = null;
+    localStorage.removeItem('raids');
+}
+
+// Clear groups cache 
+function clearGroupsCache(raidId = null) {
+    if (raidId) {
+        cache.groups.delete(raidId);
+    } else {
+        cache.groups.clear();
     }
 }
 
@@ -1464,6 +1573,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const raidSelect = document.getElementById('raid-select');
             const createButton = event.target; // Reference the clicked button
             const selectedOption = raidSelect.options[raidSelect.selectedIndex];
+            const storedRaids = JSON.parse(localStorage.getItem('raids'));
+            if (storedRaids) {
+                cache.raids = storedRaids;
+            }
         
             // Disable the button to prevent duplicate clicks
             createButton.disabled = true;
