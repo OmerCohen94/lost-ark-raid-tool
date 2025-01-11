@@ -24,17 +24,18 @@ if (error) {
 
 // Function to fetch static data from SUPABASE
 async function fetchFromStorage(filePath) {
-    const { data, error } = await supabase.storage
-        .from('static-data') // Bucket name
-        .download(filePath);
-
-    if (error) {
-        console.error(`Error fetching ${filePath} from storage:`, error);
-        return null;
-    }
-
     try {
-        const text = await data.text(); // Convert the file to text
+        const { data, error } = await supabase.storage
+            .from('static-data') // Use the correct bucket name
+            .download(filePath);
+
+        if (error) {
+            console.error(`Error fetching ${filePath} from storage:`, error);
+            return null;
+        }
+
+        const text = await data.text(); // Convert the file content to text
+        console.log(`Fetched data from ${filePath}:`, text);
         return JSON.parse(text); // Parse and return JSON
     } catch (parseError) {
         console.error(`Error parsing JSON from ${filePath}:`, parseError);
@@ -393,24 +394,25 @@ const deleteGroup = async (group_id) => {
 
 // Get raids into dropdowns
 async function loadRaidsDropdown(raidSelect) {
-    // Check cache
-    if (cache.raids) {
-        console.log('Using cached raids');
-        populateRaidDropdown(raidSelect, cache.raids);
-        return;
-    }
-
     try {
-        const raids = await fetchRaids(); // Fetch raids from Supabase Storage
-        if (raids) {
-            cache.raids = raids; // Cache in memory
-            localStorage.setItem('raids', JSON.stringify(raids)); // Persist to localStorage
-            populateRaidDropdown(raidSelect, raids); // Populate the dropdown
-        } else {
-            raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
+        const raids = await fetchRaids();
+        if (!raids || raids.length === 0) {
+            console.warn('No raids available to populate dropdown');
+            raidSelect.innerHTML = '<option value="" disabled>No raids available</option>';
+            return;
         }
+
+        console.log('Populating raid dropdown with:', raids);
+        raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>';
+        raids.forEach(raid => {
+            const option = document.createElement('option');
+            option.value = raid.id;
+            option.setAttribute('data-min-ilvl', raid.min_item_level);
+            option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
+            raidSelect.appendChild(option);
+        });
     } catch (error) {
-        console.error('Error loading raids:', error);
+        console.error('Error populating raid dropdown:', error);
         raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
     }
 }
