@@ -833,24 +833,18 @@ async function resetGroup(groupId) {
     }
 
     try {
-// Clear group members in the database
-if (!groupId) {
-    console.error('Invalid group ID. Cannot clear group members.');
-    return { error: 'Invalid group ID' };
-}
+        // Clear group members in the database
+        const { error } = await supabase
+            .from('group_members')
+            .delete()
+            .eq('group_id', groupId);
 
-const { error } = await supabase
-    .from('group_members')
-    .delete()
-    .eq('group_id', groupId);
+        if (error) {
+            console.error('Error clearing group members:', error);
+            return { error: 'Error clearing group members' };
+        }
 
-if (error) {
-    console.error('Error clearing group members:', error);
-    return { error: 'Error clearing group members' };
-}
-
-console.log(`Group members for group ID ${groupId} cleared successfully.`);
-
+        console.log(`Group members for group ID ${groupId} cleared successfully.`);
 
         // Reset dropdowns in the UI
         const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
@@ -859,10 +853,9 @@ console.log(`Group members for group ID ${groupId} cleared successfully.`);
         const playerSelects = groupElement.querySelectorAll('.player-select');
         const characterSelects = groupElement.querySelectorAll('.character-select');
 
-        playerSelects.forEach(playerSelect => {
-            playerSelect.value = '';
-            playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
-        });
+        for (const playerSelect of playerSelects) {
+            await populatePlayerDropdown(groupId, playerSelect);
+        }
 
         characterSelects.forEach(characterSelect => {
             characterSelect.value = '';
@@ -876,7 +869,6 @@ console.log(`Group members for group ID ${groupId} cleared successfully.`);
         return { error: 'Unexpected server error' };
     }
 }
-
 
 // Ensure group_id is properly included in the members array before saving
 async function saveGroupMembers(groupId, members) {
