@@ -665,6 +665,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
         const characters = await fetchEligibleCharacters(playerId, groupId);
 
         if (!characters || characters.length === 0) {
+            console.warn(`No eligible characters found for player ${playerId} in group ${groupId}`);
             characterSelect.innerHTML = '<option value="" disabled>No eligible characters</option>';
             characterSelect.disabled = true;
             return;
