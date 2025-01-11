@@ -863,31 +863,27 @@ async function updateCharacterOptions(playerSelect, characterSelect, groupId) {
 let isCreatingGroup = false; // Prevent duplicate submissions
 
 async function createRaidGroup(raid_id, min_item_level) {
-    if (isCreatingGroup) return; // Prevent duplicate calls
+    if (isCreatingGroup) return { error: 'A group creation is already in progress' };
     isCreatingGroup = true;
 
     try {
         if (!raid_id || min_item_level === null || min_item_level === undefined) {
-            alert('Raid ID and minimum item level are required');
-            return;
+            return { error: 'Raid ID and minimum item level are required' };
         }
 
-        // Fetch the raid name
         const { data: raid, error: raidError } = await supabase
             .from('raids')
             .select('name')
             .eq('id', raid_id)
             .single();
 
-        if (raidError) {
+        if (raidError || !raid) {
             console.error('Error fetching raid:', raidError);
-            alert('Error fetching raid details.');
-            return;
+            return { error: 'Error fetching raid details' };
         }
 
-        const raidName = raid?.name;
+        const raidName = raid.name;
 
-        // Count existing groups for the raid
         const { count: groupCount, error: countError } = await supabase
             .from('groups')
             .select('*', { count: 'exact' })
@@ -895,34 +891,31 @@ async function createRaidGroup(raid_id, min_item_level) {
 
         if (countError) {
             console.error('Error counting groups:', countError);
-            alert('Error counting existing groups.');
-            return;
+            return { error: 'Error counting existing groups' };
         }
 
         const nextGroupNumber = (groupCount || 0) + 1;
         const groupName = `Group ${nextGroupNumber}`;
 
-        // Create the new group
         const { data: newGroup, error: insertError } = await supabase
             .from('groups')
             .insert([{ raid_id, group_name: groupName, min_item_level }])
             .select()
             .single();
 
-        if (insertError) {
-            console.error('Error creating group:', insertError);
-            alert('Error creating group.');
-            return;
+        if (insertError || !newGroup) {
+            console.error('Error creating group:', insertError || 'No data returned');
+            return { error: 'Error creating group' };
         }
 
         console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
-
-        // Refresh groups
-        await loadExistingGroups(raid_id);
+        await loadExistingGroups(raid_id); // Refresh groups
+        return { group_name: groupName };
     } catch (error) {
         console.error('Unexpected error creating group:', error);
+        return { error: 'Unexpected error creating group' };
     } finally {
-        isCreatingGroup = false; // Reset the flag
+        isCreatingGroup = false; // Reset flag
     }
 }
 
