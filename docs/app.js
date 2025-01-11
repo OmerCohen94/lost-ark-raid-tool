@@ -289,26 +289,6 @@ const updateGroupMembers = async (group_id, members) => {
     }
 };
 
-// Query to clear group members
-const clearGroupMembers = async (group_id) => {
-    try {
-        const { error } = await supabase
-            .from('group_members')
-            .delete()
-            .eq('group_id', group_id);
-
-        if (error) {
-            console.error('Error clearing group members:', error);
-            return { error: 'Error clearing group members' };
-        }
-
-        return { message: 'Group members cleared successfully' };
-    } catch (error) {
-        console.error('Unexpected error clearing group members:', error);
-        return { error: 'Unexpected server error' };
-    }
-};
-
 // Query to delete group
 const deleteGroup = async (group_id) => {
     try {
@@ -926,14 +906,39 @@ async function resetGroup(groupId) {
     }
 
     try {
-        const result = await clearGroupMembers(groupId);
+        // Clear group members from the database
+        const { error } = await supabase
+            .from('group_members')
+            .delete()
+            .eq('group_id', groupId);
 
-        if (result.error) {
-            console.error('Error resetting group:', result.error);
-            return { error: result.error };
+        if (error) {
+            console.error('Error clearing group members:', error);
+            return { error: 'Error clearing group members' };
         }
 
-        console.log('Group reset successfully:', result.message);
+        console.log('Group members cleared successfully');
+
+        // Clear saved dropdown selections
+        localStorage.removeItem(`group_${groupId}_selections`);
+
+        // Reset dropdowns to default
+        const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+        if (groupElement) {
+            const playerSelects = groupElement.querySelectorAll('.player-select');
+            const characterSelects = groupElement.querySelectorAll('.character-select');
+
+            playerSelects.forEach(playerSelect => {
+                playerSelect.value = ''; // Reset player dropdown
+                playerSelect.dispatchEvent(new Event('change')); // Trigger change event to reset characters
+            });
+
+            characterSelects.forEach(characterSelect => {
+                characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>'; // Reset character dropdown
+                characterSelect.disabled = true; // Disable the dropdown
+            });
+        }
+
         return { message: 'Group reset successfully' };
     } catch (error) {
         console.error('Unexpected error resetting group:', error);
