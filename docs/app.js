@@ -101,6 +101,32 @@ function clearCharactersCache(playerId, groupId = null) {
     }
 }
 
+// Function to disable already assigned characters across groups
+async function disableAssignedCharacters() {
+    try {
+        const { data: assignedCharacters, error } = await supabase
+            .from('group_members')
+            .select('character_id');
+
+        if (error) {
+            console.error('Error fetching assigned characters:', error);
+            return;
+        }
+
+        const assignedCharacterIds = assignedCharacters.map(c => c.character_id);
+
+        const characterOptions = document.querySelectorAll('.character-select option');
+        characterOptions.forEach(option => {
+            if (assignedCharacterIds.includes(parseInt(option.value, 10))) {
+                option.disabled = true;
+                option.textContent += ' - Already Assigned';
+            }
+        });
+    } catch (error) {
+        console.error('Error disabling assigned characters:', error);
+    }
+}
+
 // Clear Raids Cache
 function clearRaidsCache() {
     cache.raids = null;
@@ -979,65 +1005,6 @@ async function loadExistingGroups(raidId = null) {
                 minimizeButton.textContent = table.style.display === 'none' ? '+' : '−';
             };
 
-            // Save button
-            const saveButton = document.createElement('button');
-            saveButton.textContent = 'Save';
-            saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
-            saveButton.onclick = async () => {
-                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
-                const members = fetchGroupMembers(groupDiv);
-                if (!groupId || !members.length) {
-                    alert('Please select valid players and characters before saving.');
-                    return;
-                }
-
-                const result = await saveGroupMembers(groupId, members);
-                if (result.error) {
-                    alert(`Error: ${result.error}`);
-                } else {
-                    console.log(result.message);
-                }
-
-                await updateGroupSlots(groupId, headerText);
-                await disableAssignedCharacters(); // Disable already assigned characters
-                await updatePlayerList(groupId, playerListContainer); // Update player list
-            };
-
-            // Clear button
-            const clearButton = document.createElement('button');
-            clearButton.textContent = 'Clear';
-            clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
-            clearButton.onclick = async () => {
-                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
-                await resetGroup(groupId);
-                await updateGroupSlots(groupId, headerText);
-                await disableAssignedCharacters(); // Disable already assigned characters
-                await updatePlayerList(groupId, playerListContainer); // Clear player list
-            };
-
-            // Delete button
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = 'X';
-            deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
-            deleteButton.onclick = async () => {
-                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
-                const raidId = parseInt(groupDiv.getAttribute('data-raid-id'), 10);
-
-                if (!groupId || !raidId) {
-                    alert('Group ID or Raid ID is missing.');
-                    return;
-                }
-
-                await deleteRaidGroup(groupId, raidId);
-                await disableAssignedCharacters(); // Disable already assigned characters
-            };
-
-            // Append buttons to header
-            groupHeader.appendChild(minimizeButton);
-            groupHeader.appendChild(saveButton);
-            groupHeader.appendChild(clearButton);
-            groupHeader.appendChild(deleteButton);
-
             groupDiv.appendChild(groupHeader);
 
             const table = document.createElement('table');
@@ -1079,6 +1046,17 @@ async function loadExistingGroups(raidId = null) {
                         </select>
                     </td>
                     <td>${i < 3 ? 'DPS' : 'Support'}</td>
+                    <td>
+                        <select class="player-select form-control">
+                            <option value="" disabled selected>Select Player</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select class="character-select form-control" disabled>
+                            <option value="" disabled selected>Select Character</option>
+                        </select>
+                    </td>
+                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
                 `;
 
                 table.appendChild(row);
@@ -1092,9 +1070,10 @@ async function loadExistingGroups(raidId = null) {
             for (const select of playerSelects) {
                 await populatePlayerDropdown(group.id, select);
             }
-
-            await disableAssignedCharacters(); // Disable already assigned characters
         }
+
+        // Disable already assigned characters across groups
+        await disableAssignedCharacters();
     } catch (error) {
         console.error('Error loading groups:', error);
     }
