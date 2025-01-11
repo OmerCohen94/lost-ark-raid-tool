@@ -44,18 +44,23 @@ async function loadClassesDropdown(dropdownElement) {
 
 // Function to load raids into dropdowns
 async function loadRaidsDropdown(dropdownElement) {
-    const raids = await fetchFromStorage('raids.json'); // Replace with your file path
+    // Fetch raid data from Supabase Storage
+    const raids = await fetchFromStorage('raids.json'); // Replace with your file path in the Supabase bucket
 
     if (!raids) {
         dropdownElement.innerHTML = '<option value="" disabled>Error loading raids</option>';
         return;
     }
 
+    // Reset the dropdown and add a default "Select Raid" option
     dropdownElement.innerHTML = '<option value="" disabled selected>Select Raid</option>';
+
+    // Populate the dropdown with options
     raids.forEach(raid => {
         const option = document.createElement('option');
-        option.value = raid.id;
-        option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
+        option.value = raid.id; // Set the raid ID as the value
+        option.setAttribute('data-min-ilvl', raid.min_item_level); // Add the minimum item level as an attribute
+        option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`; // Display the raid name and minimum item level
         dropdownElement.appendChild(option);
     });
 }
