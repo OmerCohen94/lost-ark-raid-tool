@@ -417,8 +417,7 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
                 id,
                 name,
                 item_level,
-                classes ( name ),
-                group_members ( group_id )
+                classes ( name )
             `)
             .eq('player_id', player_id);
 
@@ -440,7 +439,7 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
                 .from('group_members')
                 .select(`
                     character_id,
-                    groups ( group_name )
+                    groups!group_members_group_id_fkey ( group_name )
                 `)
                 .eq('groups.raid_id', raid_id)
                 .neq('group_id', group_id);
