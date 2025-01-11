@@ -395,18 +395,21 @@ const deleteGroup = async (group_id) => {
 // Get raids into dropdowns
 async function loadRaidsDropdown(raidSelect) {
     try {
-        const raids = await fetchRaids();
+        const raids = await fetchRaids(); // Fetch raids from cache or storage
+
         if (!raids || raids.length === 0) {
             console.warn('No raids available to populate dropdown');
             raidSelect.innerHTML = '<option value="" disabled>No raids available</option>';
             return;
         }
 
-        console.log('Populating raid dropdown with:', raids);
+        console.log('Populating raid dropdown with:', raids); // Debug log
+
+        // Populate the dropdown
         raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>';
         raids.forEach(raid => {
             const option = document.createElement('option');
-            option.value = raid.id;
+            option.value = raid.id; // Ensure `id` matches the raid identifier
             option.setAttribute('data-min-ilvl', raid.min_item_level);
             option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
             raidSelect.appendChild(option);
