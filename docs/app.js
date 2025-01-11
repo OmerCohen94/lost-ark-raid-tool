@@ -967,47 +967,67 @@ async function resetGroup(groupId) {
 }
 
 // Function to save group members SUPABASE
-async function saveGroupMembers(groupId, members) {
-    if (!groupId || !Array.isArray(members) || members.length === 0) {
+const saveGroupMembers = async (group_id, members) => {
+    if (!group_id || !members || members.length === 0) {
         console.error('Group ID and valid members data are required');
         return { error: 'Group ID and valid members data are required' };
     }
 
     try {
-        // Clear existing members for the group
-        const { error: clearError } = await supabase
-            .from('group_members')
-            .delete()
-            .eq('group_id', groupId);
+        // Fetch the group's minimum item level
+        const { data: group, error: groupError } = await supabase
+            .from('groups')
+            .select('min_item_level')
+            .eq('id', group_id)
+            .single();
 
-        if (clearError) {
-            console.error('Error clearing existing group members:', clearError);
-            return { error: 'Error clearing existing group members' };
+        if (groupError || !group) {
+            console.error('Group not found:', groupError || 'Group not found');
+            return { error: 'Group not found' };
         }
 
-        // Insert new members
-        const { error: insertError } = await supabase
-            .from('group_members')
-            .insert(
-                members.map(member => ({
-                    group_id: groupId,
-                    player_id: member.player_id,
-                    character_id: member.character_id,
-                }))
-            );
+        const { min_item_level } = group;
 
-        if (insertError) {
-            console.error('Error saving group members:', insertError);
+        // Validate that all members meet the minimum item level requirement
+        for (const member of members) {
+            const { data: character, error: characterError } = await supabase
+                .from('characters')
+                .select('item_level, name')
+                .eq('id', member.character_id)
+                .single();
+
+            if (characterError || !character) {
+                console.error(`Error fetching character ID ${member.character_id}:`, characterError);
+                return { error: `Error fetching character ID ${member.character_id}` };
+            }
+
+            if (character.item_level < min_item_level) {
+                console.error(
+                    `Character "${character.name}" with item level ${character.item_level} does not meet the minimum requirement of ${min_item_level}`
+                );
+                return {
+                    error: `Character "${character.name}" with item level ${character.item_level} does not meet the minimum requirement of ${min_item_level}`,
+                };
+            }
+        }
+
+        // Save valid members to the group
+        const { data, error } = await supabase
+            .from('group_members')
+            .upsert(members, { onConflict: ['group_id', 'player_id', 'character_id'] });
+
+        if (error) {
+            console.error('Error saving group members:', error);
             return { error: 'Error saving group members' };
         }
 
         console.log('Group members saved successfully');
-        return { message: 'Group members saved successfully' };
+        return { success: true };
     } catch (error) {
         console.error('Unexpected error saving group members:', error);
         return { error: 'Unexpected server error' };
     }
-}
+};
 
 // Function to handle player selection
 async function handlePlayerSelection(playerSelect) {
