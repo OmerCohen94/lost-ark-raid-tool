@@ -379,9 +379,8 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
                 item_level,
                 classes ( name )
             `)
-            .eq('player_id', parseInt(player_id, 10)); // Ensure player_id is parsed as an integer
+            .eq('player_id', parseInt(player_id, 10)); // Ensure player_id is an integer
 
-        // Add additional filtering if group_id is provided
         if (group_id) {
             const { data: group, error: groupError } = await supabase
                 .from('groups')
@@ -394,8 +393,8 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
                 return { error: 'Group not found' };
             }
 
-            const { raid_id, min_item_level } = group;
-            query.gte('item_level', min_item_level); // Add a filter for minimum item level
+            const { min_item_level } = group;
+            query.gte('item_level', min_item_level); // Filter by minimum item level
         }
 
         const { data: characters, error } = await query;
@@ -613,7 +612,7 @@ function initializePlayerSelectListeners() {
     const playerSelects = document.querySelectorAll('.player-select');
     playerSelects.forEach(playerSelect => {
         playerSelect.addEventListener('change', async (event) => {
-            const playerId = event.target.value; // Get the selected value
+            const playerId = event.target.value; // Get the selected player ID
             const groupElement = playerSelect.closest('.raid-group');
             const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
             const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
@@ -625,30 +624,8 @@ function initializePlayerSelectListeners() {
                 return;
             }
 
-            // Fetch characters and populate the dropdown
-            const characters = await fetchCharactersForPlayer(playerId, groupId);
-
-            if (!characters.error) {
-                characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>'; // Reset options
-                characters.forEach(character => {
-                    const option = document.createElement('option');
-                    option.value = character.id;
-                    option.textContent = `${character.classes.name} (${character.item_level})`;
-
-                    if (character.assigned_to_group) {
-                        option.textContent += ` - Assigned to ${character.assigned_to_group}`;
-                        option.disabled = true;
-                    }
-
-                    characterSelect.appendChild(option);
-                });
-
-                characterSelect.disabled = false; // Enable the dropdown
-            } else {
-                console.error('Error fetching characters:', characters.error);
-                characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-                characterSelect.disabled = true;
-            }
+            // Fetch and populate characters
+            await populateCharacterDropdown(playerId, groupId, characterSelect);
         });
     });
 }
@@ -1044,8 +1021,9 @@ async function loadExistingGroups(raid_id = null) {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>
-                        <select class="player-select form-control" onchange="fetchCharactersForPlayer(this)">
+                        <select class="player-select form-control">
                             <option value="" disabled>Select Player</option>
+                            <!-- Dynamically populated player options -->
                         </select>
                     </td>
                     <td>
@@ -1055,8 +1033,9 @@ async function loadExistingGroups(raid_id = null) {
                     </td>
                     <td>${i < 3 ? 'DPS' : 'Support'}</td>
                     <td>
-                        <select class="player-select form-control" onchange="fetchCharactersForPlayer(this)">
+                        <select class="character-select form-control" disabled>
                             <option value="" disabled>Select Player</option>
+                            <!-- Dynamically populated character options -->
                         </select>
                     </td>
                     <td>
