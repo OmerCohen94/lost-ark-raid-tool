@@ -388,8 +388,7 @@ const fetchCharactersForPlayer = async (player_id, group_id) => {
                 character_id,
                 groups!group_members_group_id_fkey ( group_name )
             `)
-            .eq('groups.raid_id', raid_id)
-            .neq('group_id', group_id); // Exclude the current group
+            .eq('groups.raid_id', raid_id);
 
         if (assignmentsError) {
             console.error('Error fetching assignments:', assignmentsError);
@@ -403,7 +402,7 @@ const fetchCharactersForPlayer = async (player_id, group_id) => {
 
         return characters.map(character => ({
             ...character,
-            is_eligible: min_item_level ? character.item_level >= min_item_level : true,
+            is_eligible: character.item_level >= min_item_level,
             assigned_to_group: assignmentsMap.get(character.id) || null,
         }));
     } catch (error) {
@@ -671,15 +670,12 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             option.value = character.id;
 
             if (!character.is_eligible) {
-                // Handle ineligibility due to item level
                 option.disabled = true;
                 option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${character.min_item_level})`;
             } else if (character.assigned_to_group) {
-                // Handle characters already assigned to another group in the same raid
                 option.disabled = true;
                 option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
             } else {
-                // Character is eligible and not assigned to another group
                 option.textContent = `${character.classes.name} (${character.item_level})`;
             }
 
