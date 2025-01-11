@@ -966,14 +966,21 @@ async function saveGroupMembers(groupId, members) {
             .eq('id', groupId)
             .single();
 
-        if (groupError || !group) {
-            console.error('Error fetching group details:', groupError || 'Group not found');
+        if (groupError) {
+            console.error('Error fetching group details:', groupError);
             return { error: 'Error fetching group details' };
+        }
+
+        if (!group) {
+            console.error('Group not found.');
+            return { error: 'Group not found' };
         }
 
         const raidId = group.raid_id;
 
         // Validate that no character is already assigned to another group in the same raid
+        const assignedCharacterIds = new Set();
+
         for (const member of members) {
             const { data: conflicts, error: conflictError } = await supabase
                 .from('group_members')
@@ -988,8 +995,14 @@ async function saveGroupMembers(groupId, members) {
             }
 
             if (conflicts && conflicts.length > 0) {
+                assignedCharacterIds.add(member.character_id);
                 return { error: `Character is already assigned to ${conflicts[0].groups.group_name} in this raid.` };
             }
+        }
+
+        if (assignedCharacterIds.size > 0) {
+            console.warn('Some characters are already assigned and cannot be added:', [...assignedCharacterIds]);
+            return { error: 'Some characters are already assigned and cannot be added to this group.' };
         }
 
         // Add group_id to each member before upserting
