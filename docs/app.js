@@ -860,45 +860,7 @@ const saveGroupMembers = async (group_id, members) => {
     }
 
     try {
-        // Fetch the group's minimum item level
-        const { data: group, error: groupError } = await supabase
-            .from('groups')
-            .select('min_item_level')
-            .eq('id', group_id)
-            .single();
-
-        if (groupError || !group) {
-            console.error('Group not found:', groupError || 'Group not found');
-            return { error: 'Group not found' };
-        }
-
-        const { min_item_level } = group;
-
-        // Validate that all members meet the minimum item level requirement
-        for (const member of members) {
-            const { data: character, error: characterError } = await supabase
-                .from('characters')
-                .select('item_level, name')
-                .eq('id', member.character_id)
-                .single();
-
-            if (characterError || !character) {
-                console.error(`Error fetching character ID ${member.character_id}:`, characterError);
-                return { error: `Error fetching character ID ${member.character_id}` };
-            }
-
-            if (character.item_level < min_item_level) {
-                console.error(
-                    `Character "${character.name}" with item level ${character.item_level} does not meet the minimum requirement of ${min_item_level}`
-                );
-                return {
-                    error: `Character "${character.name}" with item level ${character.item_level} does not meet the minimum requirement of ${min_item_level}`,
-                };
-            }
-        }
-
-        // Save valid members to the group
-        const { data, error } = await supabase
+        const { error } = await supabase
             .from('group_members')
             .upsert(members, { onConflict: ['group_id', 'player_id', 'character_id'] });
 
