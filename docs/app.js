@@ -62,9 +62,40 @@ async function loadRaidsDropdown(dropdownElement) {
 
 // Cache
 const cache = {
-    players: new Map(), // Cache for player data keyed by groupId
-    characters: new Map(), // Cache for character data keyed by playerId and groupId
+    players: new Map(), // Cache for players by groupId
+    characters: new Map() // Cache for characters by playerId and groupId
 };
+
+// Clear players cache
+function clearPlayersCache(groupId = null) {
+    if (groupId) {
+        cache.players.delete(groupId);
+        localStorage.removeItem(`players-${groupId}`);
+    } else {
+        cache.players.clear();
+        for (const key in localStorage) {
+            if (key.startsWith('players-')) {
+                localStorage.removeItem(key);
+            }
+        }
+    }
+}
+
+// Clear characters cache
+function clearCharactersCache(playerId, groupId = null) {
+    if (groupId) {
+        const cacheKey = `${playerId}-${groupId}`;
+        cache.characters.delete(cacheKey);
+        localStorage.removeItem(`characters-${cacheKey}`);
+    } else {
+        cache.characters.clear();
+        for (const key in localStorage) {
+            if (key.startsWith('characters-')) {
+                localStorage.removeItem(key);
+            }
+        }
+    }
+}
 
 // Query to get groups
 const fetchGroupsWithSlots = async () => {
@@ -99,95 +130,60 @@ const fetchGroupsWithSlots = async () => {
 };
 
 // Query to add new player
-const addPlayer = async (username) => {
-    if (!username || username.trim() === '') {
-        console.error('Username is required');
-        return { error: 'Username is required' };
+async function addNewPlayer(usernameInput) {
+    const username = usernameInput.value.trim();
+    if (!username) {
+        alert('Please enter a valid username.');
+        return;
     }
 
     try {
-        // Insert the new player into the database
-        const { error } = await supabase
-            .from('players')
-            .insert([{ username: username.trim() }]);
+        const result = await addPlayer(username);
 
-        if (error) {
-            console.error('Error adding player:', error);
-            return { error: 'Error adding player' };
+        if (result.error) {
+            console.error('Error adding player:', result.error);
+            alert(`Error: ${result.error}`);
+        } else {
+            alert('Player added successfully!');
+            usernameInput.value = ''; // Clear the input field
+
+            clearPlayersCache(); // Clear players cache to refresh player dropdowns
         }
-
-        return { message: 'Player added successfully' };
     } catch (error) {
         console.error('Unexpected error adding player:', error);
-        return { error: 'Unexpected server error' };
+        alert('Unexpected error adding player.');
     }
-};
+}
 
 // Query to get players for group dropdown
-const fetchPlayersForGroup = async (group_id) => {
-    if (!group_id) {
-        console.error('Group ID is required');
-        return { error: 'Group ID is required' };
+async function fetchPlayersForGroup(groupId) {
+    // Check in-memory cache first
+    if (cache.players.has(groupId)) {
+        console.log(`Cache hit for players in group ${groupId}`);
+        return cache.players.get(groupId);
     }
 
     try {
-        // Fetch the raid ID and minimum item level for the group
-        const { data: group, error: groupError } = await supabase
-            .from('groups')
-            .select('raid_id, min_item_level')
-            .eq('id', group_id)
-            .single();
-
-        if (groupError || !group) {
-            console.error('Error fetching group:', groupError || 'Group not found');
-            return { error: 'Group not found' };
-        }
-
-        const { raid_id, min_item_level } = group;
-
-        // Fetch players and their characters
-        const { data: players, error: playersError } = await supabase
+        // Fetch from database
+        const { data, error } = await supabase
             .from('players')
-            .select(`
-                id,
-                username,
-                characters (
-                    id,
-                    item_level
-                )
-            `);
+            .select('id, username');
 
-        if (playersError) {
-            console.error('Error fetching players:', playersError);
-            return { error: 'Error fetching players' };
+        if (error) {
+            console.error('Error fetching players:', error);
+            return [];
         }
 
-        // Calculate eligible players
-        const eligiblePlayers = [];
-        for (const player of players) {
-            const eligibleCharacters = player.characters.map(character => ({
-                ...character,
-                isEligible: character.item_level >= min_item_level,
-            }));
+        // Cache the results in memory and localStorage
+        cache.players.set(groupId, data);
+        localStorage.setItem(`players-${groupId}`, JSON.stringify(data));
 
-            const hasUnassignedCharacters = eligibleCharacters.some(
-                char => char.isEligible
-            );
-
-            eligiblePlayers.push({
-                id: player.id,
-                username: player.username,
-                has_eligible_characters: hasUnassignedCharacters,
-                characters: eligibleCharacters, // Include detailed eligibility info
-            });
-        }
-
-        return eligiblePlayers;
+        return data;
     } catch (error) {
         console.error('Unexpected error fetching players:', error);
-        return { error: 'Unexpected server error' };
+        return [];
     }
-};
+}
 
 // Attach click event
 document.getElementById('create-raid-btn')?.addEventListener('click', async () => {
@@ -385,29 +381,18 @@ const fetchAllPlayers = async () => {
 };
 
 // Query to get characters of a specific player
-const fetchCharactersForPlayer = async (player_id, group_id) => {
-    if (!player_id) {
-        console.error('Player ID is required');
-        return { error: 'Player ID is required' };
+async function fetchCharactersForPlayer(playerId, groupId) {
+    const cacheKey = `${playerId}-${groupId}`;
+
+    // Check in-memory cache first
+    if (cache.characters.has(cacheKey)) {
+        console.log(`Cache hit for characters in player ${playerId}, group ${groupId}`);
+        return cache.characters.get(cacheKey);
     }
 
     try {
-        // Fetch group and raid context
-        const { data: group, error: groupError } = await supabase
-            .from('groups')
-            .select('raid_id, min_item_level')
-            .eq('id', group_id)
-            .single();
-
-        if (groupError || !group) {
-            console.error('Error fetching group details:', groupError || 'Group not found');
-            return { error: 'Group not found' };
-        }
-
-        const { raid_id, min_item_level } = group;
-
-        // Fetch player's characters
-        const { data: characters, error: charactersError } = await supabase
+        // Fetch from database
+        const { data, error } = await supabase
             .from('characters')
             .select(`
                 id,
@@ -415,42 +400,23 @@ const fetchCharactersForPlayer = async (player_id, group_id) => {
                 item_level,
                 classes ( name )
             `)
-            .eq('player_id', player_id);
+            .eq('player_id', playerId);
 
-        if (charactersError) {
-            console.error('Error fetching characters:', charactersError);
-            return { error: 'Error fetching characters' };
+        if (error) {
+            console.error('Error fetching characters:', error);
+            return [];
         }
 
-        // Fetch assignments for all groups in this raid
-        const { data: assignments, error: assignmentsError } = await supabase
-            .from('group_members')
-            .select(`
-                character_id,
-                groups!group_members_group_id_fkey ( group_name )
-            `)
-            .eq('groups.raid_id', raid_id);
+        // Cache the results in memory and localStorage
+        cache.characters.set(cacheKey, data);
+        localStorage.setItem(`characters-${cacheKey}`, JSON.stringify(data));
 
-        if (assignmentsError) {
-            console.error('Error fetching assignments:', assignmentsError);
-            return { error: 'Error fetching assignments' };
-        }
-
-        const assignmentsMap = new Map();
-        assignments.forEach(row => {
-            assignmentsMap.set(row.character_id, row.groups.group_name);
-        });
-
-        return characters.map(character => ({
-            ...character,
-            is_eligible: character.item_level >= min_item_level,
-            assigned_to_group: assignmentsMap.get(character.id) || null,
-        }));
+        return data;
     } catch (error) {
         console.error('Unexpected error fetching characters:', error);
-        return { error: 'Unexpected server error' };
+        return [];
     }
-};
+}
 
 // Query to create a new character
 const createCharacter = async (player_id, name, item_level, class_id) => {
@@ -1398,7 +1364,8 @@ async function addNewCharacter(playerSelect, characterNameInput, itemLevelInput,
             characterNameInput.value = ''; // Clear the character name input
             itemLevelInput.value = ''; // Clear the item level input
             classSelect.value = ''; // Reset the class select dropdown
-            // Optionally refresh the character list
+
+            clearCharactersCache(playerId); // Clear the character cache for this player
         }
     } catch (error) {
         console.error('Unexpected error adding character:', error);
@@ -1425,7 +1392,8 @@ async function updateCharacterDetails(characterSelect, characterNameInput, itemL
             alert(`Error: ${result.error}`);
         } else {
             alert('Character updated successfully!');
-            // Optionally refresh the character list
+            const playerId = characterSelect.dataset.playerId; // Ensure playerId is set in the dropdown
+            clearCharactersCache(playerId); // Clear the character cache for this player
         }
     } catch (error) {
         console.error('Unexpected error updating character:', error);
@@ -1455,7 +1423,8 @@ async function deleteCharacterFromPlayer(characterSelect) {
         } else {
             alert('Character deleted successfully!');
             characterSelect.value = ''; // Reset the character select dropdown
-            // Optionally refresh the character list
+            const playerId = characterSelect.dataset.playerId; // Ensure playerId is set in the dropdown
+            clearCharactersCache(playerId); // Clear the character cache for this player
         }
     } catch (error) {
         console.error('Unexpected error deleting character:', error);
@@ -1465,6 +1434,23 @@ async function deleteCharacterFromPlayer(characterSelect) {
 
 // Initialize on DOM content loaded
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize caches from localStorage on page load
+    const initializeCache = () => {
+        for (const key in localStorage) {
+            if (key.startsWith('players-')) {
+                const groupId = key.split('-')[1];
+                cache.players.set(groupId, JSON.parse(localStorage.getItem(key)));
+            }
+            if (key.startsWith('characters-')) {
+                const cacheKey = key.split('-').slice(1).join('-');
+                cache.characters.set(cacheKey, JSON.parse(localStorage.getItem(key)));
+            }
+        }
+        console.log('Caches initialized:', cache);
+    };
+
+    initializeCache();
+
     // Identify the page by checking for specific elements
     const raidSelect = document.getElementById('raid-select'); // For the Raid Organizer page
     const playerForm = document.getElementById('player-form'); // For the Add Player / Character page
@@ -1520,6 +1506,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             await addNewPlayer(usernameInput);
+            clearPlayersCache(); // Clear cache
             await loadPlayersForAddPage(playerSelect); // Refresh the player dropdown
         });
 
@@ -1531,6 +1518,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             await addNewCharacter(playerSelect, characterNameInput, itemLevelInput, classSelect);
+            clearCharactersCache(playerSelect.value); // Clear cache for this player
             await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
         });
 
@@ -1542,6 +1530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             await updateCharacterDetails(characterSelect, characterNameInput, itemLevelInput);
+            clearCharactersCache(playerSelect.value); // Clear cache for this player
             await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
         });
 
@@ -1551,6 +1540,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             await deleteCharacterFromPlayer(characterSelect);
+            clearCharactersCache(playerSelect.value); // Clear cache for this player
             await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
         });
     }
