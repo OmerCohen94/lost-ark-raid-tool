@@ -1084,7 +1084,7 @@ async function loadExistingGroups(raid_id = null) {
             saveButton.textContent = 'Save';
             saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
             saveButton.onclick = async () => {
-                const members = collectGroupMembers(groupDiv);
+                const members = saveGroupMembers(groupDiv);
                 await saveGroupMembers(group.id, members);
                 await updateGroupSlots(group.id, headerText);
             };
