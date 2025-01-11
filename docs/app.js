@@ -611,71 +611,6 @@ const getEligiblePlayers = async (min_item_level, raid_id) => {
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////// Function to restore dropdown selections from localStorage SUPABASE
-async function restoreDropdownSelections(groupId) {
-    const savedSelections = localStorage.getItem(`group_${groupId}_selections`);
-    if (!savedSelections) return;
-
-    const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
-    if (!groupElement) {
-        console.error(`Group element for groupId ${groupId} not found.`);
-        return;
-    }
-
-    const playerSelects = groupElement.querySelectorAll('.player-select');
-    const characterSelects = groupElement.querySelectorAll('.character-select');
-
-    const selections = JSON.parse(savedSelections);
-
-    for (let index = 0; index < selections.length; index++) {
-        const selection = selections[index];
-        const playerSelect = playerSelects[index];
-        const characterSelect = characterSelects[index];
-
-        // Restore player selection
-        if (selection.player) {
-            await populatePlayerDropdown(groupId, playerSelect, selection.player);
-
-            if (playerSelect.value !== selection.player) {
-                console.warn(`Preselected player ${selection.player} is no longer available.`);
-            } else {
-                playerSelect.dispatchEvent(new Event('change')); // Trigger change event if selection is valid
-            }
-        }
-
-        // Restore character selection
-        if (selection.character) {
-            const characters = await fetchCharactersForPlayer(selection.player, groupId);
-
-            if (!characters.error) {
-                characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-                characters.forEach(character => {
-                    const option = document.createElement('option');
-                    option.value = character.id;
-                    option.textContent = `${character.classes.name} (${character.item_level})`;
-
-                    if (character.assigned_to_group) {
-                        option.textContent += ` - Assigned to ${character.assigned_to_group}`;
-                        option.disabled = true;
-                    }
-
-                    characterSelect.appendChild(option);
-                });
-
-                characterSelect.value = selection.character;
-
-                if (characterSelect.value !== selection.character) {
-                    console.warn(`Preselected character ${selection.character} is no longer available.`);
-                }
-
-                characterSelect.disabled = false;
-            } else {
-                console.error(`Error fetching characters for player ${selection.player}:`, characters.error);
-            }
-        }
-    }
-}
-
 // Function to get raid minimum item level
  let selectedMinItemLevel = null; // Store the minimum item level for the selected raid
 window.setMinItemLevel = async () => {
@@ -986,54 +921,6 @@ const saveGroupMembers = async (group_id, members) => {
         return { error: 'Unexpected server error' };
     }
 };
-
-// Function to handle player selection
-async function handlePlayerSelection(playerSelect) {
-    const groupElement = playerSelect.closest('.raid-group');
-    const groupId = groupElement.getAttribute('data-group-id');
-    const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
-
-    if (!playerSelect.value) {
-        // Clear and disable the character dropdown if no player is selected
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        characterSelect.disabled = true;
-        return;
-    }
-
-    try {
-        // Fetch characters for the selected player and group
-        const characters = await fetchCharactersForPlayer(playerSelect.value, groupId);
-
-        if (!characters.error) {
-            characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>'; // Reset options
-            characters.forEach(character => {
-                const option = document.createElement('option');
-                option.value = character.id;
-                option.textContent = `${character.classes.name} (${character.item_level})`;
-
-                if (character.assigned_to_group) {
-                    option.textContent += ` - Assigned to ${character.assigned_to_group}`;
-                    option.disabled = true;
-                }
-
-                characterSelect.appendChild(option);
-            });
-
-            characterSelect.disabled = false; // Enable the dropdown
-        } else {
-            console.error('Error fetching characters:', characters.error);
-            characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-            characterSelect.disabled = true;
-        }
-    } catch (error) {
-        console.error('Unexpected error fetching characters:', error);
-        characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-        characterSelect.disabled = true;
-    }
-}
-
-// Expose the function globally
-  window.handlePlayerSelection = handlePlayerSelection;
 
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raid_id = null) {
