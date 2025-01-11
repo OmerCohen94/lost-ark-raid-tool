@@ -617,6 +617,10 @@ function initializePlayerAndCharacterListeners() {
             const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
             const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
 
+            // Show loading state immediately and disable the dropdown
+            characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
+            characterSelect.disabled = true;
+
             if (!playerId) {
                 // Reset the character dropdown if no player is selected
                 characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
@@ -624,15 +628,17 @@ function initializePlayerAndCharacterListeners() {
                 return;
             }
 
-            // Temporarily disable the dropdown while fetching data
-            characterSelect.disabled = true;
-            characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
+            try {
+                // Fetch characters and populate the dropdown
+                await populateCharacterDropdown(playerId, groupId, characterSelect);
 
-            // Populate the character dropdown
-            await populateCharacterDropdown(playerId, groupId, characterSelect);
-
-            // Ensure the dropdown is enabled after populating
-            characterSelect.disabled = false;
+                // Enable the dropdown after fetching
+                characterSelect.disabled = false;
+            } catch (error) {
+                console.error('Error in fetching characters for player selection:', error);
+                characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+                characterSelect.disabled = true;
+            }
         });
     });
 }
@@ -706,6 +712,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
     }
 
     try {
+        // Start fetching characters
         const characters = await fetchCharactersForPlayer(playerId, groupId);
 
         if (characters.error) {
@@ -715,7 +722,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
             return;
         }
 
-        // Reset the dropdown and populate options
+        // Reset the dropdown and populate with fetched characters
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
 
         characters.forEach(character => {
@@ -735,7 +742,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
             characterSelect.appendChild(option);
         });
 
-        // Restore saved selection if applicable
+        // Restore saved character selection if applicable
         if (savedCharacterId) {
             const savedCharacter = characters.find(char => char.id === savedCharacterId);
             if (savedCharacter) {
@@ -745,7 +752,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
             }
         }
 
-        // Enable the dropdown after populating
+        // Enable the dropdown after population
         characterSelect.disabled = false;
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
