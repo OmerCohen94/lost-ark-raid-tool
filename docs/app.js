@@ -986,11 +986,6 @@ async function loadExistingGroups(raid_id = null) {
             const headerText = document.createElement('h3');
             headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
 
-            // Player list container
-            const playerListContainer = document.createElement('div');
-            playerListContainer.classList.add('player-list');
-            groupDiv.appendChild(playerListContainer);
-
             // Minimize button
             const minimizeButton = document.createElement('button');
             minimizeButton.textContent = '−';
@@ -1051,7 +1046,14 @@ async function loadExistingGroups(raid_id = null) {
             groupHeader.appendChild(saveButton);
             groupHeader.appendChild(clearButton);
             groupHeader.appendChild(deleteButton);
+
+            // Player list container (Below group name and 0/8 slots)
+            const playerListContainer = document.createElement('div');
+            playerListContainer.classList.add('player-list', 'mt-2'); // Add margin for spacing
+            playerListContainer.textContent = 'No players added yet.'; // Placeholder
+
             groupDiv.appendChild(groupHeader);
+            groupDiv.appendChild(playerListContainer);
 
             const table = document.createElement('table');
             table.classList.add('assignment-table');
@@ -1141,20 +1143,24 @@ async function updatePlayerList(groupId, container) {
 
         if (error || !members) {
             console.error('Error fetching group members:', error);
-            container.innerHTML = '<p>No players added yet.</p>';
+            container.textContent = 'No players added yet.';
             return;
         }
 
-        container.innerHTML = ''; // Clear the container
+        if (members.length === 0) {
+            container.textContent = 'No players added yet.';
+            return;
+        }
 
-        members.forEach(member => {
-            const playerInfo = document.createElement('div');
-            playerInfo.textContent = `${member.players.username} - ${member.characters.name} (${member.characters.classes.name}, IL: ${member.characters.item_level})`;
-            container.appendChild(playerInfo);
-        });
+        // Format the list as: PlayerName(Classname, ItemLevel), ...
+        const playerList = members.map(member => 
+            `${member.players.username} (${member.characters.classes.name}, ${member.characters.item_level})`
+        );
+
+        container.textContent = playerList.join(', ');
     } catch (error) {
         console.error('Unexpected error updating player list:', error);
-        container.innerHTML = '<p>Error updating player list.</p>';
+        container.textContent = 'Error updating player list.';
     }
 }
 
