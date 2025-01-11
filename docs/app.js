@@ -131,7 +131,7 @@ async function fetchEligibleCharacters(playerId, groupId) {
 
     try {
         const { data, error } = await supabase
-            .from('eligible_characters')
+            .from('eligible_characters') // Use the view created for eligibility
             .select('*')
             .eq('player_id', playerId)
             .eq('group_id', groupId);
@@ -750,18 +750,18 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             return;
         }
 
+        // Populate the dropdown with fetched characters
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-
         characters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.character_id;
 
             if (!character.is_eligible) {
                 option.disabled = true;
-                option.textContent = `${character.character_name} (${character.item_level}) - Ineligible (Below Min IL)`;
+                option.textContent = `${character.character_name} (${character.item_level}) - Ineligible`;
             } else if (character.is_assigned) {
                 option.disabled = true;
-                option.textContent = `${character.character_name} (${character.item_level}) - Already Assigned`;
+                option.textContent = `${character.character_name} (${character.item_level}) - Assigned`;
             } else {
                 option.textContent = `${character.character_name} (${character.item_level})`;
             }
@@ -769,7 +769,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             characterSelect.appendChild(option);
         });
 
-        characterSelect.disabled = false;
+        characterSelect.disabled = false; // Enable the dropdown after successful population
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
