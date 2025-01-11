@@ -650,43 +650,6 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
     }
 }
 
-// And cache character
-async function populateCharacterDropdown(playerId, groupId, characterSelect) {
-    try {
-        const characters = await fetchEligibleCharacters(playerId, groupId);
-
-        if (!characters || characters.length === 0) {
-            characterSelect.innerHTML = '<option value="" disabled>No eligible characters</option>';
-            characterSelect.disabled = true;
-            return;
-        }
-
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        characters.forEach(character => {
-            const option = document.createElement('option');
-            option.value = character.character_id;
-
-            if (!character.is_eligible) {
-                option.disabled = true;
-                option.textContent = `${character.character_name} (${character.item_level}) - Ineligible`;
-            } else if (character.is_assigned) {
-                option.disabled = true;
-                option.textContent = `${character.character_name} (${character.item_level}) - Assigned`;
-            } else {
-                option.textContent = `${character.character_name} (${character.item_level})`;
-            }
-
-            characterSelect.appendChild(option);
-        });
-
-        characterSelect.disabled = false;
-    } catch (error) {
-        console.error('Error populating character dropdown:', error);
-        characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-        characterSelect.disabled = true;
-    }
-}
-
 // Function to populate players in a dropdown SUPABASE
 async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId = null) {
     if (cache.players.has(groupId)) {
