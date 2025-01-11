@@ -834,67 +834,29 @@ async function populateRaidDropdown() {
 }
 
 // Function to create a raid group SUPABASE
-let isCreatingGroup = false; // Prevent duplicate submissions
-async function createRaidGroup(raid_id, min_item_level) {
-    if (isCreatingGroup) return { error: 'A group creation is already in progress' };
-    isCreatingGroup = true;
+async function createRaidGroup(raidId, minItemLevel) {
+    if (!raidId || minItemLevel === null || minItemLevel === undefined) {
+        console.error('Raid ID and minimum item level are required.');
+        return { error: 'Raid ID and minimum item level are required.' };
+    }
 
     try {
-        if (!raid_id || min_item_level === null || min_item_level === undefined) {
-            return { error: 'Raid ID and minimum item level are required' };
-        }
-
-        const { data: raid, error: raidError } = await supabase
-            .from('raids')
-            .select('name')
-            .eq('id', raid_id)
-            .single();
-
-        if (raidError || !raid) {
-            console.error('Error fetching raid:', raidError);
-            return { error: 'Error fetching raid details' };
-        }
-
-        const raidName = raid.name;
-
-        const { count: groupCount, error: countError } = await supabase
+        const { data: newGroup, error } = await supabase
             .from('groups')
-            .select('*', { count: 'exact' })
-            .eq('raid_id', raid_id);
-
-        if (countError) {
-            console.error('Error counting groups:', countError);
-            return { error: 'Error counting existing groups' };
-        }
-
-        const nextGroupNumber = (groupCount || 0) + 1;
-        const groupName = `Group ${nextGroupNumber}`;
-
-        const { data: newGroup, error: insertError } = await supabase
-            .from('groups')
-            .insert([{ raid_id, group_name: groupName, min_item_level }])
+            .insert([{ raid_id: raidId, min_item_level: minItemLevel }])
             .select()
             .single();
 
-        if (insertError || !newGroup) {
-            console.error('Error creating group:', insertError || 'No data returned');
-            return { error: 'Error creating group' };
+        if (error || !newGroup) {
+            console.error('Error creating group:', error || 'No data returned');
+            return { error: 'Error creating group.' };
         }
 
-        const groupId = newGroup.id; // Ensure groupId is assigned here
-
-        console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
-
-        // Refresh groups and persist new group selections
-        await loadExistingGroups(raid_id);
-        initializePlayerAndCharacterListeners(groupId);
-
-        return { group_name: groupName, group_id: groupId };
+        console.log(`Group created successfully: ${newGroup.group_name}`);
+        return { success: true };
     } catch (error) {
         console.error('Unexpected error creating group:', error);
-        return { error: 'Unexpected error creating group' };
-    } finally {
-        isCreatingGroup = false; // Reset flag
+        return { error: 'Unexpected error creating group.' };
     }
 }
 
@@ -1496,15 +1458,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (raidSelect) {
         // Raid Organizer Page
-        await loadRaidsDropdown(raidSelect); // Load raids from storage
+        await loadRaidsDropdown(raidSelect); // Load raids from Supabase Storage
         loadExistingGroups(); // Load groups initially
 
-        // Load existing groups based on raid selection
+        // Refresh groups based on raid selection
         raidSelect.addEventListener('change', async () => {
-            const selectedRaidId = raidSelect.value || null; // Handle all groups if no selection
-            await loadExistingGroups(selectedRaidId); // Refresh the groups
+            const selectedRaidId = raidSelect.value || null;
+            await loadExistingGroups(selectedRaidId);
         });
 
+        // Create a new raid group
         document.getElementById('create-raid-btn')?.addEventListener('click', async () => {
             const selectedOption = raidSelect.options[raidSelect.selectedIndex];
             if (!selectedOption || !selectedOption.value) {
@@ -1531,13 +1494,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const classSelect = document.getElementById('class-select');
         const characterSelect = document.getElementById('character-select');
 
-        await loadClassesDropdown(classSelect); // Load classes from storage
-        loadPlayersForAddPage(playerSelect);
+        await loadClassesDropdown(classSelect); // Load classes from Supabase Storage
+        loadPlayersForAddPage(playerSelect); // Populate players from cache or fetch
 
+        // Load characters for selected player
         playerSelect?.addEventListener('change', async (event) => {
             await loadCharactersForPlayer(event.target.value, characterSelect);
         });
 
+        // Add a new player
         document.getElementById('add-player-btn')?.addEventListener('click', async () => {
             const usernameInput = document.getElementById('username-input');
             if (usernameInput.value.trim() === '') {
@@ -1545,10 +1510,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             await addNewPlayer(usernameInput);
-            clearPlayersCache(); // Clear cache
-            await loadPlayersForAddPage(playerSelect); // Refresh the player dropdown
+            clearPlayersCache(); // Clear player cache
+            await loadPlayersForAddPage(playerSelect); // Refresh player dropdown
         });
 
+        // Add a new character
         document.getElementById('add-character-btn')?.addEventListener('click', async () => {
             const characterNameInput = document.getElementById('character-name-input');
             const itemLevelInput = document.getElementById('item-level-input');
@@ -1557,10 +1523,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             await addNewCharacter(playerSelect, characterNameInput, itemLevelInput, classSelect);
-            clearCharactersCache(playerSelect.value); // Clear cache for this player
-            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
+            clearCharactersCache(playerSelect.value); // Clear character cache for this player
+            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
         });
 
+        // Update character details
         document.getElementById('update-character-btn')?.addEventListener('click', async () => {
             const characterNameInput = document.getElementById('character-name-input');
             const itemLevelInput = document.getElementById('item-level-input');
@@ -1569,18 +1536,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             await updateCharacterDetails(characterSelect, characterNameInput, itemLevelInput);
-            clearCharactersCache(playerSelect.value); // Clear cache for this player
-            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
+            clearCharactersCache(playerSelect.value); // Clear character cache for this player
+            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
         });
 
+        // Delete a character
         document.getElementById('delete-character-btn')?.addEventListener('click', async () => {
             if (!characterSelect.value) {
                 alert('Please select a character to delete.');
                 return;
             }
             await deleteCharacterFromPlayer(characterSelect);
-            clearCharactersCache(playerSelect.value); // Clear cache for this player
-            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh the character dropdown
+            clearCharactersCache(playerSelect.value); // Clear character cache for this player
+            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
         });
     }
 });
