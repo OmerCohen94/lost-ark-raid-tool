@@ -704,18 +704,31 @@ async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId
 
         if (!players.error) {
             playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
-            players.forEach(player => {
+
+            for (const player of players) {
                 const option = document.createElement('option');
                 option.value = player.id;
                 option.textContent = player.username;
 
-                if (!player.has_eligible_characters) {
-                    option.textContent += ' - No eligible characters';
+                // Check if the player already has a character assigned to this group
+                const { data: assignedMembers, error } = await supabase
+                    .from('group_members')
+                    .select('player_id')
+                    .eq('group_id', groupId)
+                    .eq('player_id', player.id);
+
+                if (error) {
+                    console.error(`Error checking assignments for player ${player.username}:`, error);
+                }
+
+                // Disable the option if the player has a saved character in this group
+                if (assignedMembers && assignedMembers.length > 0) {
                     option.disabled = true;
+                    option.textContent += ' - Already in group';
                 }
 
                 playerSelect.appendChild(option);
-            });
+            }
 
             if (preselectedPlayerId) {
                 playerSelect.value = preselectedPlayerId;
