@@ -1523,7 +1523,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const result = await createRaidGroup(raidId, parseInt(minItemLevel, 10));
         
                 if (result.error) {
-                    alert(`Error creating group: ${result.error}`);
                 } else {
                     await loadExistingGroups(); // Refresh the groups
                 }
