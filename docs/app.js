@@ -118,11 +118,6 @@ function clearGroupsCache(raidId = null) {
 
 // Function to get eligible characters
 async function fetchEligibleCharacters(playerId, groupId) {
-    if (!playerId || !groupId) {
-        console.error('Player ID and Group ID are required');
-        return [];
-    }
-
     try {
         const { data, error } = await supabase
             .from('eligible_characters')
@@ -135,10 +130,7 @@ async function fetchEligibleCharacters(playerId, groupId) {
             return [];
         }
 
-        if (!data || data.length === 0) {
-            console.warn(`No eligible characters found for player ${playerId} in group ${groupId}`);
-        }
-
+        console.log(`Fetched eligible characters for Player: ${playerId}, Group: ${groupId}`, data);
         return data;
     } catch (error) {
         console.error('Unexpected error fetching eligible characters:', error);
@@ -698,36 +690,40 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
 }
 
 // And cache character
-function populateCharacterDropdownFromCache(characters, characterSelect, savedCharacterId) {
-    characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+async function populateCharacterDropdown(playerId, groupId, characterSelect) {
+    try {
+        const characters = await fetchEligibleCharacters(playerId, groupId);
 
-    characters.forEach(character => {
-        const option = document.createElement('option');
-        option.value = character.id;
-
-        if (!character.is_eligible) {
-            option.disabled = true;
-            option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL)`;
-        } else if (character.assigned_to_group) {
-            option.disabled = true;
-            option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
-        } else {
-            option.textContent = `${character.classes.name} (${character.item_level})`;
+        if (!characters || characters.length === 0) {
+            characterSelect.innerHTML = '<option value="" disabled>No eligible characters</option>';
+            characterSelect.disabled = true;
+            return;
         }
 
-        characterSelect.appendChild(option);
-    });
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+        characters.forEach(character => {
+            const option = document.createElement('option');
+            option.value = character.character_id;
 
-    if (savedCharacterId) {
-        const savedCharacter = characters.find(char => char.id === savedCharacterId);
-        if (savedCharacter) {
-            characterSelect.value = savedCharacterId;
-        } else {
-            console.warn(`Saved character ${savedCharacterId} is no longer valid.`);
-        }
+            if (!character.is_eligible) {
+                option.disabled = true;
+                option.textContent = `${character.character_name} (${character.item_level}) - Ineligible`;
+            } else if (character.is_assigned) {
+                option.disabled = true;
+                option.textContent = `${character.character_name} (${character.item_level}) - Assigned`;
+            } else {
+                option.textContent = `${character.character_name} (${character.item_level})`;
+            }
+
+            characterSelect.appendChild(option);
+        });
+
+        characterSelect.disabled = false;
+    } catch (error) {
+        console.error('Error populating character dropdown:', error);
+        characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+        characterSelect.disabled = true;
     }
-
-    characterSelect.disabled = false;
 }
 
 // Function to populate players in a dropdown SUPABASE
