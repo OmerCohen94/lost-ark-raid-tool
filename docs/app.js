@@ -270,35 +270,32 @@ async function fetchPlayersForGroup(groupId) {
     }
 }
 
-// Query to get members of specific group
-async function fetchGroupMembers(groupId) {
-    if (!groupId || isNaN(parseInt(groupId, 10))) { // Validate group_id
-        console.error('Invalid group ID:', groupId);
+// Function to fetch group members
+function fetchGroupMembers(groupDiv) {
+    const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
+
+    if (isNaN(groupId)) {
+        console.error('Invalid group ID:', groupDiv);
         return [];
     }
 
-    try {
-        const { data, error } = await supabase
-            .from('group_members')
-            .select(`
-                player_id,
-                players(username),
-                characters(name, item_level)
-            `)
-            .eq('group_id', groupId); // Correctly use groupId
+    const rows = groupDiv.querySelectorAll('.assignment-table tr');
+    const members = [];
 
-        if (error) {
-            console.error('Error fetching group members:', error);
-            return [];
+    rows.forEach(row => {
+        const playerSelect = row.querySelector('.player-select');
+        const characterSelect = row.querySelector('.character-select');
+
+        if (playerSelect && characterSelect && playerSelect.value && characterSelect.value) {
+            members.push({
+                player_id: parseInt(playerSelect.value, 10),
+                character_id: parseInt(characterSelect.value, 10)
+            });
         }
+    });
 
-        return data;
-    } catch (error) {
-        console.error('Unexpected error fetching group members:', error);
-        return [];
-    }
+    return members;
 }
-
 
 // Query to save members in specific group
 const updateGroupMembers = async (group_id, members) => {
