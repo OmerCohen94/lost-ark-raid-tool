@@ -814,40 +814,20 @@ async function resetGroup(groupId) {
         return { error: 'Unexpected server error' };
     }
 }
-
-// Function to save group members SUPABASE
-const saveGroupMembers = async (groupId, members) => {
+// Function to save group members
+async function saveGroupMembers(groupId, members) {
     if (!groupId || !members || members.length === 0) {
         console.error('Group ID and valid members data are required');
         return { error: 'Group ID and valid members data are required' };
     }
 
     try {
-        const { data: group, error: groupError } = await supabase
-            .from('groups')
-            .select('raid_id')
-            .eq('id', groupId)
-            .single();
-
-        if (groupError || !group) {
-            console.error('Group not found:', groupError || 'Group not found');
-            return { error: 'Group not found' };
-        }
-
-        const raidId = group.raid_id;
-
-        const formattedMembers = members.map(member => ({
-            group_id: groupId,
-            player_id: parseInt(member.player_id, 10),
-            character_id: parseInt(member.character_id, 10),
-        }));
-
-        const { error: upsertError } = await supabase
+        const { error } = await supabase
             .from('group_members')
-            .upsert(formattedMembers, { onConflict: ['group_id', 'player_id', 'character_id'] });
+            .upsert(members, { onConflict: ['group_id', 'player_id', 'character_id'] });
 
-        if (upsertError) {
-            console.error('Error saving group members:', upsertError);
+        if (error) {
+            console.error('Error saving group members:', error);
             return { error: 'Error saving group members' };
         }
 
@@ -857,7 +837,7 @@ const saveGroupMembers = async (groupId, members) => {
         console.error('Unexpected error saving group members:', error);
         return { error: 'Unexpected server error' };
     }
-};
+}
 
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raidId = null) {
