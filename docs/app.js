@@ -869,7 +869,6 @@ async function createRaidGroup(raid_id, min_item_level) {
     try {
         if (!raid_id || min_item_level === null || min_item_level === undefined) {
             alert('Raid ID and minimum item level are required');
-            isCreatingGroup = false;
             return;
         }
 
@@ -880,14 +879,13 @@ async function createRaidGroup(raid_id, min_item_level) {
             .eq('id', raid_id)
             .single();
 
-        if (raidError || !raid) {
-            console.error('Error fetching raid:', raidError || 'Raid not found');
+        if (raidError) {
+            console.error('Error fetching raid:', raidError);
             alert('Error fetching raid details.');
-            isCreatingGroup = false;
             return;
         }
 
-        const raidName = raid.name;
+        const raidName = raid?.name;
 
         // Count existing groups for the raid
         const { count: groupCount, error: countError } = await supabase
@@ -898,7 +896,6 @@ async function createRaidGroup(raid_id, min_item_level) {
         if (countError) {
             console.error('Error counting groups:', countError);
             alert('Error counting existing groups.');
-            isCreatingGroup = false;
             return;
         }
 
@@ -912,10 +909,9 @@ async function createRaidGroup(raid_id, min_item_level) {
             .select()
             .single();
 
-        if (insertError || !newGroup) {
-            console.error('Error creating group:', insertError || 'No data returned');
+        if (insertError) {
+            console.error('Error creating group:', insertError);
             alert('Error creating group.');
-            isCreatingGroup = false;
             return;
         }
 
