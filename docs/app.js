@@ -272,22 +272,27 @@ async function fetchPlayersForGroup(groupId) {
 
 // Query to get members of specific group
 async function fetchGroupMembers(groupId) {
+    if (!groupId || isNaN(parseInt(groupId, 10))) { // Validate group_id
+        console.error('Invalid group ID:', groupId);
+        return [];
+    }
+
     try {
-        const { data: members, error } = await supabase
+        const { data, error } = await supabase
             .from('group_members')
-            .select('player_id, players(username), characters(name, item_level)')
-            .eq('group_id', groupId);
+            .select(`
+                player_id,
+                players(username),
+                characters(name, item_level)
+            `)
+            .eq('group_id', groupId); // Correctly use groupId
 
         if (error) {
             console.error('Error fetching group members:', error);
             return [];
         }
 
-        return members.map(member => ({
-            player_name: member.players.username,
-            character_name: member.characters.name,
-            item_level: member.characters.item_level,
-        }));
+        return data;
     } catch (error) {
         console.error('Unexpected error fetching group members:', error);
         return [];
@@ -606,58 +611,6 @@ const fetchAllCharacters = async () => {
         return { error: 'Unexpected server error' };
     }
 };
-
-// Function to add event listeners to player selection
-function initializePlayerAndCharacterListeners() {
-    const playerSelects = document.querySelectorAll('.player-select');
-    const fetchInProgress = new Map(); // Track ongoing fetch operations for each dropdown
-
-    playerSelects.forEach(playerSelect => {
-        playerSelect.addEventListener('change', async (event) => {
-            const playerId = event.target.value;
-            const groupElement = playerSelect.closest('.raid-group');
-            const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
-            const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
-
-            // Check if a fetch operation is already in progress for this dropdown
-            if (fetchInProgress.get(playerSelect)) {
-                console.log('Fetch already in progress, ignoring change.');
-                return;
-            }
-
-            // Set loading state
-            characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
-            characterSelect.disabled = true;
-
-            await populateCharacterDropdown(playerId, groupId, characterSelect);
-
-            if (!playerId) {
-                // Reset the character dropdown if no player is selected
-                characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-                characterSelect.disabled = true;
-                return;
-            }
-
-            try {
-                // Mark the fetch operation as in progress
-                fetchInProgress.set(playerSelect, true);
-
-                // Populate the character dropdown
-                await populateCharacterDropdown(playerId, groupId, characterSelect);
-
-                // Enable the dropdown after fetching
-                characterSelect.disabled = false;
-            } catch (error) {
-                console.error('Error in fetching characters for player selection:', error);
-                characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-                characterSelect.disabled = true;
-            } finally {
-                // Mark the fetch operation as complete
-                fetchInProgress.set(playerSelect, false);
-            }
-        });
-    });
-}
 
 // Function to populate characters in a dropdown SUPABASE
 async function populateCharacterDropdown(playerId, groupId, characterSelect) {
@@ -1103,9 +1056,6 @@ async function loadExistingGroups(raidId = null) {
             for (const select of playerSelects) {
                 await populatePlayerDropdown(group.id, select);
             }
-
-            // Initialize listeners for dropdowns
-            initializePlayerAndCharacterListeners(group.id);
 
             // Update player list
             await updatePlayerList(group.id, playerListContainer);
@@ -1568,5 +1518,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 )
                 .subscribe();
         }
+
+        // Dynamic event binding for player-select in raid groups
+        document.addEventListener('change', async (event) => {
+            const playerSelect = event.target.closest('.player-select');
+            if (!playerSelect) return;
+
+            const playerId = playerSelect.value;
+            const groupElement = playerSelect.closest('.raid-group');
+            const groupId = groupElement?.getAttribute('data-group-id');
+            const characterSelect = playerSelect.closest('td')?.nextElementSibling?.querySelector('.character-select');
+
+            if (!groupId || !characterSelect) {
+                console.error('Invalid group or character dropdown context');
+                return;
+            }
+
+            // Set loading state
+            characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
+            characterSelect.disabled = true;
+
+            try {
+                // Populate the character dropdown
+                await populateCharacterDropdown(playerId, groupId, characterSelect);
+
+                // Enable the dropdown after fetching
+                characterSelect.disabled = false;
+            } catch (error) {
+                console.error('Error fetching characters for player selection:', error);
+                characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+                characterSelect.disabled = true;
+            }
+        });
     })();
 });
