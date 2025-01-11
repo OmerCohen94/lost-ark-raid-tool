@@ -1167,38 +1167,38 @@ async function loadExistingGroups(raid_id = null) {
                 <th>Role</th>
             `;
             table.appendChild(roleHeaderRow);
+// Add Rows for Party 1 and Party 2
+for (let i = 0; i < 4; i++) {
+    const row = document.createElement('tr');
 
-            // Add Rows for Party 1 and Party 2
-            for (let i = 0; i < 4; i++) {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>
-                        <select class="player-select form-control">
-                            <option value="" disabled>Select Player</option>
-                            <!-- Dynamically populated player options -->
-                        </select>
-                    </td>
-                    <td>
-                        <select class="character-select form-control" disabled>
-                            <option value="" disabled selected>Select Character</option>
-                        </select>
-                    </td>
-                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
-                    <td>
-                        <select class="character-select form-control" disabled>
-                            <option value="" disabled>Select Player</option>
-                            <!-- Dynamically populated character options -->
-                        </select>
-                    </td>
-                    <td>
-                        <select class="character-select form-control" disabled>
-                            <option value="" disabled selected>Select Character</option>
-                        </select>
-                    </td>
-                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
-                `;
-                table.appendChild(row);
-            }
+    row.innerHTML = `
+        <td>
+            <select class="player-select form-control">
+                <option value="" disabled selected>Select Player</option>
+            </select>
+        </td>
+        <td>
+            <select class="character-select form-control" disabled>
+                <option value="" disabled selected>Select Character</option>
+            </select>
+        </td>
+        <td>${i < 3 ? 'DPS' : 'Support'}</td>
+        <td>
+            <select class="player-select form-control">
+                <option value="" disabled selected>Select Player</option>
+            </select>
+        </td>
+        <td>
+            <select class="character-select form-control" disabled>
+                <option value="" disabled selected>Select Character</option>
+            </select>
+        </td>
+        <td>${i < 3 ? 'DPS' : 'Support'}</td>
+    `;
+
+    table.appendChild(row);
+}
+
 
             groupDiv.appendChild(table);
             groupsContainer.appendChild(groupDiv);
