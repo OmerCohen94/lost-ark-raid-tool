@@ -860,6 +860,8 @@ async function updateCharacterOptions(playerSelect, characterSelect, groupId) {
 }
 
 // Function to create a raid group SUPABASE
+let isCreatingGroup = false; // Prevent duplicate submissions
+
 async function createRaidGroup(raid_id, min_item_level) {
     if (isCreatingGroup) return; // Prevent duplicate calls
     isCreatingGroup = true;
