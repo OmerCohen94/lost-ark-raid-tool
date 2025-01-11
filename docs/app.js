@@ -260,45 +260,29 @@ async function fetchPlayersForGroup(groupId) {
 }
 
 // Query to get members of specific group
-function collectGroupMembers(groupElement) {
-    if (!groupElement) {
-        console.error('Group element is not defined.');
+async function fetchGroupMembers(groupId) {
+    try {
+        const { data: members, error } = await supabase
+            .from('group_members')
+            .select('player_id, players(username), characters(name, item_level)')
+            .eq('group_id', groupId);
+
+        if (error) {
+            console.error('Error fetching group members:', error);
+            return [];
+        }
+
+        return members.map(member => ({
+            player_name: member.players.username,
+            character_name: member.characters.name,
+            item_level: member.characters.item_level,
+        }));
+    } catch (error) {
+        console.error('Unexpected error fetching group members:', error);
         return [];
     }
-
-    const rows = groupElement.querySelectorAll('tr');
-    const members = [];
-
-    rows.forEach((row, index) => {
-        const playerSelect = row.querySelector('.player-select');
-        const characterSelect = row.querySelector('.character-select');
-
-        if (!playerSelect || !characterSelect) {
-            console.warn(`Missing player or character select in row ${index + 1}`);
-            return;
-        }
-
-        const playerId = playerSelect.value;
-        const characterId = parseInt(characterSelect.value, 10);
-
-        if (!isNaN(playerId) && !isNaN(characterId)) {
-            members.push({
-                player_id: playerId,
-                character_id: characterId,
-            });
-        } else {
-            console.warn(
-                `Invalid selection in row ${index + 1}: Player ID (${playerSelect.value || 'none'}), Character ID (${characterSelect.value || 'none'})`
-            );
-        }
-    });
-
-    if (members.length === 0) {
-        console.warn('No valid members collected from the group.');
-    }
-
-    return members;
 }
+
 
 // Query to save members in specific group
 const updateGroupMembers = async (group_id, members) => {
@@ -1075,7 +1059,7 @@ async function loadExistingGroups(raid_id = null) {
             saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
             saveButton.onclick = async () => {
                 const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
-                const members = collectGroupMembers(groupDiv);
+                const members = fetchGroupMembers(groupDiv);
                 if (!groupId || !members.length) {
                     alert('Please select valid players and characters before saving.');
                     return;
@@ -1427,6 +1411,26 @@ async function updateCharacterDetails(characterSelect, characterNameInput, itemL
         alert('Unexpected error updating character.');
     }
 }
+// Function to update group UI dynamically
+async function updateGroupUI(groupId) {
+    const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+    if (!groupElement) return;
+
+    const members = await fetchGroupMembers(groupId); // Fetch updated members
+    const memberList = groupElement.querySelector('.member-list');
+
+    if (members.length === 0) {
+        memberList.innerHTML = '<p>No members yet.</p>';
+        return;
+    }
+
+    memberList.innerHTML = ''; // Clear the list
+    members.forEach(member => {
+        const memberItem = document.createElement('div');
+        memberItem.textContent = `${member.player_name} (${member.character_name})`;
+        memberList.appendChild(memberItem);
+    });
+}
 
 // Function to delete character in add players page SUPABASE
 async function deleteCharacterFromPlayer(characterSelect) {
@@ -1473,6 +1477,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 cache.characters.set(cacheKey, JSON.parse(localStorage.getItem(key)));
             }
         }
+        const storedRaids = JSON.parse(localStorage.getItem('raids'));
+        if (storedRaids) cache.raids = storedRaids;
+
         console.log('Caches initialized:', cache);
     };
 
@@ -1493,42 +1500,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadExistingGroups(selectedRaidId);
         });
 
+        // Create a new raid group
         document.getElementById('create-raid-btn')?.addEventListener('click', async (event) => {
-            event.preventDefault(); // Prevent default behavior and multiple event triggers
-        
-            const raidSelect = document.getElementById('raid-select');
+            event.preventDefault();
+
             const createButton = event.target; // Reference the clicked button
             const selectedOption = raidSelect.options[raidSelect.selectedIndex];
-            const storedRaids = JSON.parse(localStorage.getItem('raids'));
-            if (storedRaids) {
-                cache.raids = storedRaids;
-            }
-        
+
             // Disable the button to prevent duplicate clicks
             createButton.disabled = true;
-        
+
             if (!selectedOption || !selectedOption.value) {
                 console.error('Please select a raid to create a group.');
                 alert('Please select a raid to create a group.');
                 createButton.disabled = false; // Re-enable the button
                 return;
             }
-        
+
             const raidId = selectedOption.value;
             const minItemLevel = selectedOption.getAttribute('data-min-ilvl');
-        
+
             if (!raidId || !minItemLevel) {
                 console.error('Invalid raid selection or missing minimum item level.');
                 alert('Invalid raid selection or missing minimum item level.');
                 createButton.disabled = false; // Re-enable the button
                 return;
             }
-        
+
             try {
                 createButton.textContent = 'Creating...';
-        
+
                 const result = await createRaidGroup(raidId, parseInt(minItemLevel, 10));
-        
+
                 if (result.error) {
                     console.error(`Error creating group: ${result.error}`);
                 } else {
@@ -1542,8 +1545,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 createButton.textContent = 'Create Raid Group';
             }
         });
-        
-        
+
+        // Realtime listener for groups
+        supabase
+            .from('groups')
+            .on('INSERT', payload => {
+                console.log('New group added:', payload.new);
+                loadExistingGroups(payload.new.raid_id);
+            })
+            .on('UPDATE', payload => {
+                console.log('Group updated:', payload.new);
+                loadExistingGroups(payload.new.raid_id);
+            })
+            .on('DELETE', payload => {
+                console.log('Group deleted:', payload.old);
+                loadExistingGroups();
+            })
+            .subscribe();
     }
 
     if (playerForm) {
@@ -1608,5 +1626,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearCharactersCache(playerSelect.value); // Clear character cache for this player
             await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
         });
+
+        // Realtime listener for group members
+        supabase
+            .from('group_members')
+            .on('INSERT', payload => {
+                console.log('New member added:', payload.new);
+                updateGroupUI(payload.new.group_id);
+            })
+            .on('DELETE', payload => {
+                console.log('Member removed:', payload.old);
+                updateGroupUI(payload.old.group_id);
+            })
+            .subscribe();
     }
 });
