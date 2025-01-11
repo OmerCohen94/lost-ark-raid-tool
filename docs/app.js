@@ -811,15 +811,15 @@ async function deleteRaidGroup(groupId, raidId) {
     }
 }
 
-// Function to reset a group SUPABASE
+// Function to reset a group
 async function resetGroup(groupId) {
     if (!groupId) {
-        console.error('Group ID is required');
+        console.error('Group ID is required to reset the group');
         return { error: 'Group ID is required' };
     }
 
     try {
-        // Clear group members from the database
+        // Clear group members in the database
         const { error } = await supabase
             .from('group_members')
             .delete()
@@ -832,31 +832,30 @@ async function resetGroup(groupId) {
 
         console.log('Group members cleared successfully');
 
-
-        // Reset dropdowns to default
+        // Reset dropdowns in the UI
         const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
-        if (groupElement) {
-            const playerSelects = groupElement.querySelectorAll('.player-select');
-            const characterSelects = groupElement.querySelectorAll('.character-select');
+        const playerSelects = groupElement.querySelectorAll('.player-select');
+        const characterSelects = groupElement.querySelectorAll('.character-select');
 
-            playerSelects.forEach(playerSelect => {
-                playerSelect.value = ''; // Reset player dropdown
-                playerSelect.dispatchEvent(new Event('change')); // Trigger change event to reset characters
-            });
+        playerSelects.forEach(playerSelect => {
+            playerSelect.value = '';
+            playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
+        });
 
-            characterSelects.forEach(characterSelect => {
-                characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>'; // Reset character dropdown
-                characterSelect.disabled = true; // Disable the dropdown
-            });
-        }
+        characterSelects.forEach(characterSelect => {
+            characterSelect.value = '';
+            characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+            characterSelect.disabled = true;
+        });
 
-        return { message: 'Group reset successfully' };
+        return { success: true };
     } catch (error) {
         console.error('Unexpected error resetting group:', error);
         return { error: 'Unexpected server error' };
     }
 }
-// Function to save group members
+
+// Function to save group members and disable selected options
 async function saveGroupMembers(groupId, members) {
     if (!groupId || !members || members.length === 0) {
         console.error('Group ID and valid members data are required');
@@ -874,6 +873,36 @@ async function saveGroupMembers(groupId, members) {
         }
 
         console.log('Group members saved successfully');
+
+        // Refresh dropdowns to disable already selected options
+        const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+        const playerSelects = groupElement.querySelectorAll('.player-select');
+        const characterSelects = groupElement.querySelectorAll('.character-select');
+
+        playerSelects.forEach(playerSelect => {
+            const selectedValue = playerSelect.value;
+            if (selectedValue) {
+                const options = document.querySelectorAll(`.player-select option[value="${selectedValue}"]`);
+                options.forEach(option => {
+                    if (option.parentElement !== playerSelect) {
+                        option.disabled = true;
+                    }
+                });
+            }
+        });
+
+        characterSelects.forEach(characterSelect => {
+            const selectedValue = characterSelect.value;
+            if (selectedValue) {
+                const options = document.querySelectorAll(`.character-select option[value="${selectedValue}"]`);
+                options.forEach(option => {
+                    if (option.parentElement !== characterSelect) {
+                        option.disabled = true;
+                    }
+                });
+            }
+        });
+
         return { success: true };
     } catch (error) {
         console.error('Unexpected error saving group members:', error);
