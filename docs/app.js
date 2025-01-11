@@ -214,7 +214,7 @@ window.fetchRaids = async () => {
 };
 
 // Query to get members of specific group
-const fetchGroupMembers = async (group_id) => {
+const collectGroupMembers = async (group_id) => {
     try {
         const { data: members, error } = await supabase
             .from('group_members')
@@ -1102,20 +1102,25 @@ async function loadExistingGroups(raid_id = null) {
             saveButton.textContent = 'Save';
             saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
             saveButton.onclick = async () => {
-                const members = fetchGroupMembers(groupDiv);
-                if (!members || members.length === 0) {
+                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10); // Ensure group_id is an integer
+                const members = collectGroupMembers(groupDiv);
+            
+                if (!groupId || !members || members.length === 0) {
+                    console.error('Group ID and valid members data are required');
                     alert('Please select valid players and characters before saving.');
                     return;
                 }
-                const result = await saveGroupMembers(group.id, members);
+            
+                const result = await saveGroupMembers(groupId, members);
                 if (result.error) {
                     alert(`Error: ${result.error}`);
                 } else {
                     console.log(result.message);
                 }
-                await updateGroupSlots(group.id, headerText);
+            
+                await updateGroupSlots(groupId, headerText);
             };
-
+            
             // Add Clear Button
             const clearButton = document.createElement('button');
             clearButton.textContent = 'Clear';
