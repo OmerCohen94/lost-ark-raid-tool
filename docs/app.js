@@ -220,6 +220,8 @@ const fetchGroupMembers = async (group_id) => {
             .from('group_members')
             .select(`
                 group_id,
+                player_id,
+                character_id,
                 players ( username ),
                 characters ( name, item_level )
             `)
@@ -1012,6 +1014,7 @@ async function saveGroupMembers(groupId, members) {
         }
 
         console.log('Group members saved successfully');
+        return { message: 'Group members saved successfully' };
     } catch (error) {
         console.error('Unexpected error saving group members:', error);
         return { error: 'Unexpected server error' };
@@ -1103,8 +1106,17 @@ async function loadExistingGroups(raid_id = null) {
             saveButton.textContent = 'Save';
             saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
             saveButton.onclick = async () => {
-                const members = saveGroupMembers(groupDiv);
-                await saveGroupMembers(group.id, members);
+                const members = collectGroupMembers(groupDiv);
+                if (!members || members.length === 0) {
+                    alert('Please select valid players and characters before saving.');
+                    return;
+                }
+                const result = await saveGroupMembers(group.id, members);
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                } else {
+                    console.log(result.message);
+                }
                 await updateGroupSlots(group.id, headerText);
             };
 
