@@ -618,13 +618,13 @@ function initializePlayerAndCharacterListeners() {
             const groupElement = playerSelect.closest('.raid-group');
             const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
             const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
-
+        
             if (!playerId) {
                 characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
                 characterSelect.disabled = true;
                 return;
             }
-
+        
             await populateCharacterDropdown(playerId, groupId, characterSelect);
         });
     });
@@ -640,9 +640,7 @@ function initializePlayerAndCharacterListeners() {
 // Function to populate characters in a dropdown SUPABASE
 async function populateCharacterDropdown(playerId, groupId, characterSelect, savedCharacterId = null) {
     if (!playerId || !groupId) {
-        console.log('Waiting for player selection or group ID');
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        characterSelect.disabled = true;
+        console.error('Player ID and Group ID are required');
         return;
     }
 
@@ -679,23 +677,18 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
 
         if (savedCharacterId) {
             const savedCharacter = characters.find(char => char.id === savedCharacterId);
-            if (savedCharacter && savedCharacter.is_eligible && !savedCharacter.assigned_to_group) {
+            if (savedCharacter) {
                 characterSelect.value = savedCharacterId;
             } else {
-                console.warn(`Saved character ${savedCharacterId} is no longer valid or eligible.`);
-                characterSelect.selectedIndex = 0;
+                console.warn(`Saved character ${savedCharacterId} is no longer valid.`);
             }
-        } else {
-            characterSelect.selectedIndex = 0;
         }
-
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
         characterSelect.disabled = true;
     }
 }
-
 
 // Function to populate players in a dropdown SUPABASE
 async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId = null) {
