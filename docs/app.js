@@ -1034,7 +1034,7 @@ async function loadExistingGroups(raid_id = null) {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>
-                        <select class="player-select form-control" onchange="handlePlayerSelection(this)">
+                        <select class="player-select form-control" onchange="fetchCharactersForPlayer(this)">
                             <option value="" disabled>Select Player</option>
                         </select>
                     </td>
@@ -1045,7 +1045,7 @@ async function loadExistingGroups(raid_id = null) {
                     </td>
                     <td>${i < 3 ? 'DPS' : 'Support'}</td>
                     <td>
-                        <select class="player-select form-control" onchange="handlePlayerSelection(this)">
+                        <select class="player-select form-control" onchange="fetchCharactersForPlayer(this)">
                             <option value="" disabled>Select Player</option>
                         </select>
                     </td>
@@ -1068,8 +1068,6 @@ async function loadExistingGroups(raid_id = null) {
                 await populatePlayerDropdown(group.id, select);
             }
 
-            // Restore Dropdown Selections
-            await restoreDropdownSelections(group.id);
         }
     } catch (error) {
         console.error('Error loading groups:', error);
