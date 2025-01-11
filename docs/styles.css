@@ -88,3 +88,10 @@ h1, h2, h3 {
 .assignment-table tr:not(.party-header):not(.role-header):hover {
     background-color: #f1f1f1;
 }
+
+.btn {
+    display: inline-block; /* Ensure buttons are displayed */
+    visibility: visible; /* Ensure buttons are visible */
+    opacity: 1; /* Ensure buttons are fully opaque */
+}
+

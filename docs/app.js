@@ -1087,12 +1087,74 @@ async function loadExistingGroups(raid_id = null) {
             const headerText = document.createElement('h3');
             headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
 
+            // Add Minimize Button
+            const minimizeButton = document.createElement('button');
+            minimizeButton.textContent = '−';
+            minimizeButton.classList.add('btn', 'btn-secondary', 'btn-sm', 'ml-auto');
+            minimizeButton.onclick = () => {
+                const table = groupDiv.querySelector('.assignment-table');
+                table.style.display = table.style.display === 'none' ? 'table' : 'none';
+                minimizeButton.textContent = table.style.display === 'none' ? '+' : '−';
+            };
+
+            // Add Save Button
+            const saveButton = document.createElement('button');
+            saveButton.textContent = 'Save';
+            saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
+            saveButton.onclick = async () => {
+                const members = collectGroupMembers(groupDiv);
+                if (!members || members.length === 0) {
+                    alert('Please select valid players and characters before saving.');
+                    return;
+                }
+                const result = await saveGroupMembers(group.id, members);
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                } else {
+                    console.log(result.message);
+                }
+                await updateGroupSlots(group.id, headerText);
+            };
+
+            // Add Clear Button
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear';
+            clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
+            clearButton.onclick = async () => {
+                await resetGroup(group.id);
+                await updateGroupSlots(group.id, headerText);
+            };
+
+            // Add Delete Button
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'X';
+            deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
+            deleteButton.onclick = async () => {
+                await deleteRaidGroup(group.id);
+                await loadExistingGroups(raid_id);
+            };
+
+            // Append Buttons to Header
             groupHeader.appendChild(headerText);
+            groupHeader.appendChild(minimizeButton);
+            groupHeader.appendChild(saveButton);
+            groupHeader.appendChild(clearButton);
+            groupHeader.appendChild(deleteButton);
             groupDiv.appendChild(groupHeader);
 
+            // Create Table for Group
             const table = document.createElement('table');
             table.classList.add('assignment-table');
 
+            // Add Party Header
+            const partyHeaderRow = document.createElement('tr');
+            partyHeaderRow.innerHTML = `
+                <th colspan="3">Party 1</th>
+                <th colspan="3">Party 2</th>
+            `;
+            table.appendChild(partyHeaderRow);
+
+            // Add Rows for Players and Characters
             for (let i = 0; i < 4; i++) {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -1113,16 +1175,19 @@ async function loadExistingGroups(raid_id = null) {
             groupDiv.appendChild(table);
             groupsContainer.appendChild(groupDiv);
 
+            // Populate Player Dropdowns
             const playerSelects = groupDiv.querySelectorAll('.player-select');
             for (const select of playerSelects) {
                 await populatePlayerDropdown(group.id, select);
             }
+
+            // Restore Dropdown Selections
+            await restoreDropdownSelections(group.id);
         }
     } catch (error) {
         console.error('Error loading groups:', error);
     }
 }
-
 
 // Update slots count dynamically SUPABASE
 async function updateGroupSlots(groupId, headerTextElement) {
