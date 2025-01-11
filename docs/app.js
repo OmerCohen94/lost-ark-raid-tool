@@ -1005,6 +1005,65 @@ async function loadExistingGroups(raidId = null) {
                 minimizeButton.textContent = table.style.display === 'none' ? '+' : '−';
             };
 
+            // Save button
+            const saveButton = document.createElement('button');
+            saveButton.textContent = 'Save';
+            saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
+            saveButton.onclick = async () => {
+                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
+                const members = fetchGroupMembers(groupDiv);
+                if (!groupId || !members.length) {
+                    alert('Please select valid players and characters before saving.');
+                    return;
+                }
+
+                const result = await saveGroupMembers(groupId, members);
+                if (result.error) {
+                    alert(`Error: ${result.error}`);
+                } else {
+                    console.log(result.message);
+                }
+
+                await updateGroupSlots(groupId, headerText);
+                await disableAssignedCharacters(); // Disable already assigned characters
+                await updatePlayerList(groupId, playerListContainer); // Update player list
+            };
+
+            // Clear button
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear';
+            clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
+            clearButton.onclick = async () => {
+                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
+                await resetGroup(groupId);
+                await updateGroupSlots(groupId, headerText);
+                await disableAssignedCharacters(); // Disable already assigned characters
+                await updatePlayerList(groupId, playerListContainer); // Clear player list
+            };
+
+            // Delete button
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'X';
+            deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
+            deleteButton.onclick = async () => {
+                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
+                const raidId = parseInt(groupDiv.getAttribute('data-raid-id'), 10);
+
+                if (!groupId || !raidId) {
+                    alert('Group ID or Raid ID is missing.');
+                    return;
+                }
+
+                await deleteRaidGroup(groupId, raidId);
+                await disableAssignedCharacters(); // Disable already assigned characters
+            };
+
+            // Append buttons to header
+            groupHeader.appendChild(minimizeButton);
+            groupHeader.appendChild(saveButton);
+            groupHeader.appendChild(clearButton);
+            groupHeader.appendChild(deleteButton);
+
             groupDiv.appendChild(groupHeader);
 
             const table = document.createElement('table');
@@ -1078,6 +1137,7 @@ async function loadExistingGroups(raidId = null) {
         console.error('Error loading groups:', error);
     }
 }
+
 
 // Function to dynamically update the player list
 async function updatePlayerList(groupId, container) {
