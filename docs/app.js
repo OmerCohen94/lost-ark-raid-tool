@@ -1102,7 +1102,7 @@ async function loadExistingGroups(raid_id = null) {
             saveButton.textContent = 'Save';
             saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
             saveButton.onclick = async () => {
-                const members = collectGroupMembers(groupDiv);
+                const members = fetchGroupMembers(groupDiv);
                 if (!members || members.length === 0) {
                     alert('Please select valid players and characters before saving.');
                     return;
