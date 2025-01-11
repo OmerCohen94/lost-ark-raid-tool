@@ -1112,9 +1112,32 @@ async function loadExistingGroups(raid_id = null) {
                 await updateGroupSlots(groupId, headerText);
             };
 
+            // Clear button
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear';
+            clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
+            clearButton.onclick = async () => {
+                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
+                await resetGroup(groupId);
+                await updateGroupSlots(groupId, headerText);
+            };
+
+            // Delete button
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'X';
+            deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
+            deleteButton.onclick = async () => {
+                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
+                await deleteRaidGroup(groupId);
+                await loadExistingGroups(raid_id);
+            };
+
+            // Append buttons to header
             groupHeader.appendChild(headerText);
             groupHeader.appendChild(minimizeButton);
             groupHeader.appendChild(saveButton);
+            groupHeader.appendChild(clearButton);
+            groupHeader.appendChild(deleteButton);
             groupDiv.appendChild(groupHeader);
 
             const table = document.createElement('table');
