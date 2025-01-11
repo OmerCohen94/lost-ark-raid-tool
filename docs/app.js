@@ -629,9 +629,6 @@ function initializePlayerAndCharacterListeners() {
 
             // Fetch and populate characters
             await populateCharacterDropdown(playerId, groupId, characterSelect);
-
-            // Save the updated dropdown selections
-            saveDropdownSelections(groupId);
         });
     });
 
