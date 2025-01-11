@@ -609,40 +609,6 @@ const fetchAllCharacters = async () => {
     }
 };
 
-
-// Function to get raid minimum item level
- let selectedMinItemLevel = null; // Store the minimum item level for the selected raid
-window.setMinItemLevel = async () => {
-    const raidSelect = document.getElementById('raid-select');
-    const raid_id = raidSelect.value;
-
-    if (!raid_id) {
-        console.error('No raid selected');
-        return;
-    }
-
-    try {
-        const { data: raid, error } = await supabase
-            .from('raids')
-            .select('min_item_level')
-            .eq('id', raid_id)
-            .single();
-
-        if (error || !raid) {
-            console.error('Error fetching minimum item level:', error || 'Raid not found');
-            alert('Error fetching minimum item level for the selected raid.');
-            selectedMinItemLevel = null;
-            return;
-        }
-
-        selectedMinItemLevel = raid.min_item_level;
-        console.log('Selected Minimum Item Level:', selectedMinItemLevel);
-    } catch (error) {
-        console.error('Unexpected error fetching minimum item level:', error);
-        selectedMinItemLevel = null;
-    }
-};
-
 // Function to add event listeners to player selection
 function initializePlayerAndCharacterListeners() {
     const playerSelects = document.querySelectorAll('.player-select');
