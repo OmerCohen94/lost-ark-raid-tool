@@ -637,18 +637,39 @@ const fetchAllCharacters = async () => {
 
 // Function to populate characters in a dropdown SUPABASE
 async function populateCharacterDropdown(playerId, groupId, characterSelect) {
-    try {
-        const { eligibleCharacters } = await fetchEligibleCharacters(playerId, groupId);
+    if (!playerId || !groupId) {
+        console.error('Player ID and Group ID are required');
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+        characterSelect.disabled = true;
+        return;
+    }
 
-        if (!eligibleCharacters || eligibleCharacters.length === 0) {
-            console.warn(`No eligible characters found for Player: ${playerId}, Group: ${groupId}`);
-            characterSelect.innerHTML = '<option value="" disabled>No eligible characters</option>';
+    try {
+        const { data: eligibleCharacters, error } = await supabase
+            .from('eligible_characters')
+            .select('*')
+            .eq('player_id', playerId)
+            .eq('group_id', groupId);
+
+        if (error) {
+            console.error('Error fetching eligible characters:', error);
+            characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
             characterSelect.disabled = true;
             return;
         }
 
+        // Remove duplicate entries from eligible characters
+        const uniqueCharacters = eligibleCharacters.reduce((acc, char) => {
+            if (!acc.some(item => item.character_id === char.character_id)) {
+                acc.push(char);
+            }
+            return acc;
+        }, []);
+
+        // Reset dropdown
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        eligibleCharacters.forEach(character => {
+
+        uniqueCharacters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.character_id;
 
@@ -657,7 +678,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
                 option.textContent = `${character.character_name} (${character.item_level}) - Ineligible`;
             } else if (character.is_assigned) {
                 option.disabled = true;
-                option.textContent = `${character.character_name} (${character.item_level}) - Assigned`;
+                option.textContent = `${character.character_name} (${character.item_level}) - Already in group`;
             } else {
                 option.textContent = `${character.character_name} (${character.item_level})`;
             }
@@ -667,7 +688,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
 
         characterSelect.disabled = false;
     } catch (error) {
-        console.error('Error populating character dropdown:', error);
+        console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
         characterSelect.disabled = true;
     }
