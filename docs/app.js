@@ -113,13 +113,16 @@ async function disableAssignedCharacters() {
             return;
         }
 
-        const assignedCharacterIds = assignedCharacters.map(c => c.character_id);
+        const assignedCharacterIds = new Set(assignedCharacters.map(c => c.character_id)); // Use Set to prevent duplicates
 
         const characterOptions = document.querySelectorAll('.character-select option');
         characterOptions.forEach(option => {
-            if (assignedCharacterIds.includes(parseInt(option.value, 10))) {
+            const charId = parseInt(option.value, 10);
+            if (assignedCharacterIds.has(charId)) {
                 option.disabled = true;
-                option.textContent += ' - Already Assigned';
+                if (!option.textContent.includes('Already Assigned')) {
+                    option.textContent += ' - Already Assigned';
+                }
             }
         });
     } catch (error) {
@@ -938,16 +941,20 @@ async function saveGroupMembers(groupId, members) {
 
         // Validate that no character is already assigned to another group in the same raid
         for (const member of members) {
-            const { data: conflict, error: conflictError } = await supabase
+            const { data: conflicts, error: conflictError } = await supabase
                 .from('group_members')
                 .select('group_id, groups(group_name)')
                 .eq('character_id', member.character_id)
                 .eq('groups.raid_id', raidId)
-                .neq('group_id', groupId)
-                .single();
+                .neq('group_id', groupId);
 
-            if (conflictError === null && conflict) {
-                return { error: `Character is already assigned to ${conflict.groups.group_name} in this raid.` };
+            if (conflictError) {
+                console.error('Error checking character assignments:', conflictError);
+                return { error: 'Error checking character assignments' };
+            }
+
+            if (conflicts && conflicts.length > 0) {
+                return { error: `Character is already assigned to ${conflicts[0].groups.group_name} in this raid.` };
             }
         }
 
@@ -977,6 +984,7 @@ async function saveGroupMembers(groupId, members) {
         return { error: 'Unexpected server error' };
     }
 }
+
 
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raidId = null) {
