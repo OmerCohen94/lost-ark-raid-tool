@@ -1004,6 +1004,14 @@ const saveGroupMembers = async (group_id, members) => {
             }
         }
 
+        // Ensure group_id is included in each member object
+        members = members.map(member => ({
+            ...member,
+            group_id: group_id // Add group_id to each member explicitly
+        }));
+
+        console.log('Saving group members:', members);
+
         // Save members to the database
         const { error } = await supabase
             .from('group_members')
