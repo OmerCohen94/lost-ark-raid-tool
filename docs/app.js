@@ -344,33 +344,29 @@ const fetchAllPlayers = async () => {
 };
 
 // Query to get characters of a specific player
-const fetchCharactersForPlayer = async (player_id, group_id = null) => {
-    if (!player_id || isNaN(Number(player_id))) {
-        console.error('Invalid player ID provided:', player_id);
-        return { error: 'Invalid player ID provided' };
+const fetchCharactersForPlayer = async (player_id, group_id) => {
+    if (!player_id) {
+        console.error('Player ID is required');
+        return { error: 'Player ID is required' };
     }
 
     try {
-        let raidMinItemLevel = null;
+        // Fetch group and raid context
+        const { data: group, error: groupError } = await supabase
+            .from('groups')
+            .select('raid_id, min_item_level')
+            .eq('id', group_id)
+            .single();
 
-        // Fetch raid details if group_id is provided
-        if (group_id) {
-            const { data: group, error: groupError } = await supabase
-                .from('groups')
-                .select('min_item_level')
-                .eq('id', group_id)
-                .single();
-
-            if (groupError || !group) {
-                console.error('Group not found:', groupError || 'Group not found');
-                return { error: 'Group not found' };
-            }
-
-            raidMinItemLevel = group.min_item_level;
+        if (groupError || !group) {
+            console.error('Error fetching group details:', groupError || 'Group not found');
+            return { error: 'Group not found' };
         }
 
-        // Fetch characters for the player
-        const { data: characters, error } = await supabase
+        const { raid_id, min_item_level } = group;
+
+        // Fetch player's characters
+        const { data: characters, error: charactersError } = await supabase
             .from('characters')
             .select(`
                 id,
@@ -380,16 +376,35 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
             `)
             .eq('player_id', player_id);
 
-        if (error) {
-            console.error('Error fetching characters:', error);
+        if (charactersError) {
+            console.error('Error fetching characters:', charactersError);
             return { error: 'Error fetching characters' };
         }
 
-        // Annotate eligibility for each character
+        // Fetch assignments for this raid
+        const { data: assignments, error: assignmentsError } = await supabase
+            .from('group_members')
+            .select(`
+                character_id,
+                groups!group_members_group_id_fkey ( group_name )
+            `)
+            .eq('groups.raid_id', raid_id)
+            .neq('group_id', group_id); // Exclude the current group
+
+        if (assignmentsError) {
+            console.error('Error fetching assignments:', assignmentsError);
+            return { error: 'Error fetching assignments' };
+        }
+
+        const assignmentsMap = new Map();
+        assignments.forEach(row => {
+            assignmentsMap.set(row.character_id, row.groups.group_name);
+        });
+
         return characters.map(character => ({
             ...character,
-            is_eligible: raidMinItemLevel ? character.item_level >= raidMinItemLevel : true,
-            min_item_level: raidMinItemLevel, // Include the min item level for clarity
+            is_eligible: min_item_level ? character.item_level >= min_item_level : true,
+            assigned_to_group: assignmentsMap.get(character.id) || null,
         }));
     } catch (error) {
         console.error('Unexpected error fetching characters:', error);
@@ -660,9 +675,15 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             const minItemLevel = character.min_item_level || 'Unknown'; // Provide fallback for missing min item level
 
             if (!isEligible) {
+                // Handle ineligibility due to item level
                 option.disabled = true;
                 option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${minItemLevel})`;
+            } else if (character.assigned_to_group) {
+                // Handle characters already assigned to another group in the same raid
+                option.disabled = true;
+                option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
             } else {
+                // Character is eligible and not assigned to another group
                 option.textContent = `${character.classes.name} (${character.item_level})`;
             }
 
@@ -953,13 +974,37 @@ const saveGroupMembers = async (group_id, members) => {
         return { error: 'Group ID and valid members data are required' };
     }
 
-    // Ensure group_id is set for each member
-    members = members.map(member => ({
-        ...member,
-        group_id: group_id, // Add group_id if not already present
-    }));
-
     try {
+        // Fetch the raid_id for the group
+        const { data: group, error: groupError } = await supabase
+            .from('groups')
+            .select('raid_id')
+            .eq('id', group_id)
+            .single();
+
+        if (groupError || !group) {
+            console.error('Group not found:', groupError || 'Group not found');
+            return { error: 'Group not found' };
+        }
+
+        const { raid_id } = group;
+
+        // Validate that no character is already assigned to another group in the same raid
+        for (const member of members) {
+            const { data: conflict, error: conflictError } = await supabase
+                .from('group_members')
+                .select('group_id, groups(group_name)')
+                .eq('character_id', member.character_id)
+                .eq('groups.raid_id', raid_id)
+                .neq('group_id', group_id)
+                .single();
+
+            if (conflictError === null && conflict) {
+                return { error: `Character is already assigned to ${conflict.groups.group_name} in this raid.` };
+            }
+        }
+
+        // Save members to the database
         const { error } = await supabase
             .from('group_members')
             .upsert(members, { onConflict: ['group_id', 'player_id', 'character_id'] });
