@@ -734,7 +734,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             // Check character eligibility based on minimum item level
             if (!character.is_eligible) {
                 option.disabled = true;
-                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${character.min_item_level})`;
+                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${selectedMinItemLevel})`;
             } else if (character.assigned_to_group) {
                 option.disabled = true;
                 option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
