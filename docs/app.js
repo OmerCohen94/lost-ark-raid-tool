@@ -371,20 +371,13 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
     }
 
     try {
-        const query = supabase
-            .from('characters')
-            .select(`
-                id,
-                name,
-                item_level,
-                classes ( name )
-            `)
-            .eq('player_id', parseInt(player_id, 10)); // Ensure player_id is an integer
+        let raidMinItemLevel = null;
 
+        // Fetch raid details if group_id is provided
         if (group_id) {
             const { data: group, error: groupError } = await supabase
                 .from('groups')
-                .select('raid_id, min_item_level')
+                .select('min_item_level')
                 .eq('id', group_id)
                 .single();
 
@@ -393,18 +386,31 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
                 return { error: 'Group not found' };
             }
 
-            const { min_item_level } = group;
-            query.gte('item_level', min_item_level); // Filter by minimum item level
+            raidMinItemLevel = group.min_item_level;
         }
 
-        const { data: characters, error } = await query;
+        // Fetch characters for the player
+        const { data: characters, error } = await supabase
+            .from('characters')
+            .select(`
+                id,
+                name,
+                item_level,
+                classes ( name )
+            `)
+            .eq('player_id', player_id);
 
         if (error) {
             console.error('Error fetching characters:', error);
             return { error: 'Error fetching characters' };
         }
 
-        return characters;
+        // Annotate eligibility for each character
+        return characters.map(character => ({
+            ...character,
+            is_eligible: raidMinItemLevel ? character.item_level >= raidMinItemLevel : true,
+            min_item_level: raidMinItemLevel, // Include the min item level for clarity
+        }));
     } catch (error) {
         console.error('Unexpected error fetching characters:', error);
         return { error: 'Unexpected server error' };
@@ -653,13 +659,13 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             const option = document.createElement('option');
             option.value = character.id;
 
-            // Check character eligibility
-            if (!character.is_eligible) {
-                option.disabled = true; // Disable ineligible characters
-                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${selectedMinItemLevel})`;
-            } else if (character.assigned_to_group) {
+            // Determine eligibility based on item level and minimum item level
+            const isEligible = character.is_eligible; // Ensure this flag is correctly set in `fetchCharactersForPlayer`
+            const minItemLevel = character.min_item_level || 'Unknown'; // Provide fallback for missing min item level
+
+            if (!isEligible) {
                 option.disabled = true;
-                option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
+                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${minItemLevel})`;
             } else {
                 option.textContent = `${character.classes.name} (${character.item_level})`;
             }
