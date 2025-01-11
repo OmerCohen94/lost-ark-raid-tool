@@ -131,14 +131,18 @@ async function fetchEligibleCharacters(playerId, groupId) {
 
     try {
         const { data, error } = await supabase
-            .from('eligible_characters') // Use the view created for eligibility
+            .from('eligible_characters')
             .select('*')
-            .eq('player_id', playerId)
-            .eq('group_id', groupId);
+            .eq('player_id', playerId) // Match the player
+            .eq('group_id', groupId); // Match the group
 
         if (error) {
             console.error('Error fetching eligible characters:', error);
             return [];
+        }
+
+        if (!data || data.length === 0) {
+            console.warn(`No eligible characters found for player ${playerId} in group ${groupId}`);
         }
 
         return data;
@@ -147,6 +151,7 @@ async function fetchEligibleCharacters(playerId, groupId) {
         return [];
     }
 }
+
 
 // Get raids from cache
 async function fetchRaids() {
@@ -598,54 +603,6 @@ const fetchAllCharacters = async () => {
     }
 };
 
-//Function to get eligible players
-const getEligiblePlayers = async (min_item_level, raid_id) => {
-    try {
-        const { data: players, error: playersError } = await supabase
-            .from('players')
-            .select(`
-                id,
-                username,
-                characters (id, item_level)
-            `)
-            .gte('characters.item_level', min_item_level);
-
-        if (playersError) {
-            console.error('Error fetching players:', playersError);
-            return { error: 'Error fetching players' };
-        }
-
-        const eligiblePlayers = [];
-        for (const player of players) {
-            const characterIds = player.characters.map(char => char.id);
-
-            if (characterIds.length === 0) continue;
-
-            const { data: assignments, error: assignmentsError } = await supabase
-                .from('group_members')
-                .select('character_id, group_id')
-                .in('character_id', characterIds)
-                .eq('group_id', raid_id);
-
-            if (assignmentsError) {
-                console.error('Error fetching assignments:', assignmentsError);
-                continue;
-            }
-
-            if (!assignments.length) {
-                eligiblePlayers.push({
-                    id: player.id,
-                    username: player.username,
-                });
-            }
-        }
-
-        return eligiblePlayers;
-    } catch (error) {
-        console.error('Unexpected error fetching eligible players:', error);
-        return { error: 'Unexpected server error' };
-    }
-};
 
 // Function to get raid minimum item level
  let selectedMinItemLevel = null; // Store the minimum item level for the selected raid
@@ -750,7 +707,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             return;
         }
 
-        // Populate the dropdown with fetched characters
+        // Populate the dropdown
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
         characters.forEach(character => {
             const option = document.createElement('option');
@@ -769,7 +726,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             characterSelect.appendChild(option);
         });
 
-        characterSelect.disabled = false; // Enable the dropdown after successful population
+        characterSelect.disabled = false;
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
