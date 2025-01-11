@@ -104,42 +104,21 @@ const fetchPlayersForGroup = async (group_id) => {
         // Calculate eligible players
         const eligiblePlayers = [];
         for (const player of players) {
-            const eligibleCharacters = player.characters.filter(
-                char => char.item_level >= min_item_level
+            const eligibleCharacters = player.characters.map(character => ({
+                ...character,
+                isEligible: character.item_level >= min_item_level,
+            }));
+
+            const hasUnassignedCharacters = eligibleCharacters.some(
+                char => char.isEligible
             );
 
-            if (eligibleCharacters.length > 0) {
-                const { data: assignedCharacters, error: assignmentError } = await supabase
-                    .from('group_members')
-                    .select(`
-                        character_id,
-                        groups!group_members_group_id_fkey (raid_id)
-                    `)
-                    .in('character_id', eligibleCharacters.map(char => char.id))
-                    .eq('groups.raid_id', raid_id);
-
-                if (assignmentError) {
-                    console.error('Error fetching assigned characters:', assignmentError);
-                    return { error: 'Error fetching assigned characters' };
-                }
-
-                const assignedCharacterIds = assignedCharacters.map(ac => ac.character_id);
-                const hasUnassignedCharacters = eligibleCharacters.some(
-                    char => !assignedCharacterIds.includes(char.id)
-                );
-
-                eligiblePlayers.push({
-                    id: player.id,
-                    username: player.username,
-                    has_eligible_characters: hasUnassignedCharacters,
-                });
-            } else {
-                eligiblePlayers.push({
-                    id: player.id,
-                    username: player.username,
-                    has_eligible_characters: false,
-                });
-            }
+            eligiblePlayers.push({
+                id: player.id,
+                username: player.username,
+                has_eligible_characters: hasUnassignedCharacters,
+                characters: eligibleCharacters, // Include detailed eligibility info
+            });
         }
 
         return eligiblePlayers;
