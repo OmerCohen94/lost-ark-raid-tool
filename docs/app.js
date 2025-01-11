@@ -365,7 +365,7 @@ const fetchAllPlayers = async () => {
 
 // Query to get characters of a specific player
 const fetchCharactersForPlayer = async (player_id, group_id = null) => {
-    if (typeof player_id !== 'string' || isNaN(Number(player_id))) {
+    if (!player_id || isNaN(Number(player_id))) {
         console.error('Invalid player ID provided:', player_id);
         return { error: 'Invalid player ID provided' };
     }
@@ -379,9 +379,9 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
                 item_level,
                 classes ( name )
             `)
-            .eq('player_id', parseInt(player_id, 10)); // Ensure player_id is an integer
+            .eq('player_id', parseInt(player_id, 10)); // Ensure player_id is parsed as an integer
 
-        // Add additional filtering based on group_id if provided
+        // Add additional filtering if group_id is provided
         if (group_id) {
             const { data: group, error: groupError } = await supabase
                 .from('groups')
@@ -395,8 +395,7 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
             }
 
             const { raid_id, min_item_level } = group;
-
-            query.gte('item_level', min_item_level); // Filter by minimum item level if required
+            query.gte('item_level', min_item_level); // Add a filter for minimum item level
         }
 
         const { data: characters, error } = await query;
