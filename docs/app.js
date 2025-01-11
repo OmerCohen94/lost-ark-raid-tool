@@ -609,6 +609,7 @@ window.setMinItemLevel = async () => {
 // Function to add event listeners to player selection
 function initializePlayerAndCharacterListeners() {
     const playerSelects = document.querySelectorAll('.player-select');
+    const fetchInProgress = new Map(); // Track ongoing fetch operations for each dropdown
 
     playerSelects.forEach(playerSelect => {
         playerSelect.addEventListener('change', async (event) => {
@@ -617,7 +618,13 @@ function initializePlayerAndCharacterListeners() {
             const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
             const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
 
-            // Show loading state immediately and disable the dropdown
+            // Check if a fetch operation is already in progress for this dropdown
+            if (fetchInProgress.get(playerSelect)) {
+                console.log('Fetch already in progress, ignoring change.');
+                return;
+            }
+
+            // Set loading state
             characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
             characterSelect.disabled = true;
 
@@ -629,7 +636,10 @@ function initializePlayerAndCharacterListeners() {
             }
 
             try {
-                // Fetch characters and populate the dropdown
+                // Mark the fetch operation as in progress
+                fetchInProgress.set(playerSelect, true);
+
+                // Populate the character dropdown
                 await populateCharacterDropdown(playerId, groupId, characterSelect);
 
                 // Enable the dropdown after fetching
@@ -638,6 +648,9 @@ function initializePlayerAndCharacterListeners() {
                 console.error('Error in fetching characters for player selection:', error);
                 characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
                 characterSelect.disabled = true;
+            } finally {
+                // Mark the fetch operation as complete
+                fetchInProgress.set(playerSelect, false);
             }
         });
     });
@@ -653,7 +666,6 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
     }
 
     try {
-        // Start fetching characters
         const characters = await fetchCharactersForPlayer(playerId, groupId);
 
         if (characters.error) {
