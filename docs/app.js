@@ -117,20 +117,20 @@ function clearGroupsCache(raidId = null) {
 }
 
 // Function to get eligible characters
-async function fetchEligibleCharacters(playerId, groupId) {
+async function fetchEligibleCharacters(playerId, raidId) {
     try {
         const { data, error } = await supabase
             .from('eligible_characters')
             .select('*')
             .eq('player_id', playerId)
-            .eq('group_id', groupId);
+            .eq('raid_id', raidId); // Include raid_id filter
 
         if (error) {
             console.error('Error fetching eligible characters:', error);
             return [];
         }
 
-        console.log(`Fetched eligible characters for Player: ${playerId}, Group: ${groupId}`, data);
+        console.log(`Fetched eligible characters for Player: ${playerId}, Raid: ${raidId}`, data);
         return data;
     } catch (error) {
         console.error('Unexpected error fetching eligible characters:', error);
