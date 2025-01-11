@@ -176,36 +176,33 @@ async function fetchRaids() {
 }
 
 // Query to get groups
-const fetchGroupsWithSlots = async () => {
+async function fetchGroupsWithSlots(raidId = null) {
     try {
-        const { data: groups, error } = await supabase
+        const query = supabase
             .from('groups')
             .select(`
                 id,
                 group_name,
                 min_item_level,
                 raids (name),
-                group_members!group_members_group_id_fkey (id)
+                group_members (id)
             `);
+
+        if (raidId) query.eq('raid_id', raidId);
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Error fetching groups:', error);
             return [];
         }
 
-        return groups.map(group => ({
-            id: group.id,
-            group_name: group.group_name,
-            min_item_level: group.min_item_level,
-            raid_name: group.raids?.name || 'Unknown Raid',
-            filled_slots: group.group_members?.length || 0,
-            total_slots: 8, // Assuming fixed slots
-        }));
+        return data;
     } catch (error) {
         console.error('Unexpected error fetching groups:', error);
         return [];
     }
-};
+}
 
 // Query to add new player
 async function addNewPlayer(usernameInput) {
