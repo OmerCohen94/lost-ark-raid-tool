@@ -4,24 +4,6 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// TEST SHIT IDK
-const { data, error } = await supabase
-    .from('groups')
-    .select(`
-        id,
-        group_name,
-        min_item_level,
-        raids (name),
-        group_members (id)
-    `);
-
-if (error) {
-    console.error('Error fetching groups:', error);
-} else {
-    console.log('Fetched groups:', data);
-}
-
-
 // Function to fetch static data from SUPABASE
 async function fetchFromStorage(filePath) {
     try {
