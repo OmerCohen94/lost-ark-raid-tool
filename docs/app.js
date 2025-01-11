@@ -669,15 +669,16 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             return;
         }
 
+        // Reset dropdown
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
 
         characters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.id;
 
-            // Check character eligibility based on minimum item level
+            // Check character eligibility
             if (!character.is_eligible) {
-                option.disabled = true;
+                option.disabled = true; // Disable ineligible characters
                 option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${selectedMinItemLevel})`;
             } else if (character.assigned_to_group) {
                 option.disabled = true;
@@ -689,7 +690,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             characterSelect.appendChild(option);
         });
 
-        characterSelect.disabled = false;
+        characterSelect.disabled = false; // Enable the dropdown
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
