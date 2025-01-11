@@ -1004,21 +1004,22 @@ const saveGroupMembers = async (group_id, members) => {
             }
         }
 
-        // Ensure group_id is included in each member object
-        members = members.map(member => ({
-            ...member,
-            group_id: group_id // Add group_id to each member explicitly
+        // Ensure each member includes group_id explicitly
+        const formattedMembers = members.map(member => ({
+            group_id, // Ensure group_id is added explicitly
+            player_id: parseInt(member.player_id, 10), // Ensure player_id is an integer
+            character_id: parseInt(member.character_id, 10) // Ensure character_id is an integer
         }));
 
-        console.log('Saving group members:', members);
+        console.log('Saving group members:', formattedMembers);
 
         // Save members to the database
-        const { error } = await supabase
+        const { error: upsertError } = await supabase
             .from('group_members')
-            .upsert(members, { onConflict: ['group_id', 'player_id', 'character_id'] });
+            .upsert(formattedMembers, { onConflict: ['group_id', 'player_id', 'character_id'] });
 
-        if (error) {
-            console.error('Error saving group members:', error);
+        if (upsertError) {
+            console.error('Error saving group members:', upsertError);
             return { error: 'Error saving group members' };
         }
 
