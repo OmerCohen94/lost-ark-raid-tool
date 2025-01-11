@@ -101,6 +101,35 @@ function clearCharactersCache(playerId, groupId = null) {
     }
 }
 
+// Function to disable already assigned players across groups
+async function disableAssignedPlayers() {
+    try {
+        const { data: assignedPlayers, error } = await supabase
+            .from('group_members')
+            .select('player_id');
+
+        if (error) {
+            console.error('Error fetching assigned players:', error);
+            return;
+        }
+
+        const assignedPlayerIds = new Set(assignedPlayers.map(p => p.player_id)); // Use Set to avoid duplicates
+
+        const playerOptions = document.querySelectorAll('.player-select option');
+        playerOptions.forEach(option => {
+            const playerId = parseInt(option.value, 10);
+            if (assignedPlayerIds.has(playerId)) {
+                option.disabled = true;
+                if (!option.textContent.includes('Already Assigned')) {
+                    option.textContent += ' - Already Assigned';
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error disabling assigned players:', error);
+    }
+}
+
 // Function to disable already assigned characters across groups
 async function disableAssignedCharacters() {
     try {
@@ -985,7 +1014,6 @@ async function saveGroupMembers(groupId, members) {
     }
 }
 
-
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raidId = null) {
     try {
@@ -1157,6 +1185,9 @@ async function loadExistingGroups(raidId = null) {
 
             // Update Player List
             await updatePlayerList(group.id, playerListContainer);
+
+            // Disable already assigned players across groups
+            await disableAssignedPlayers();
 
             // Disable already assigned characters across groups
             await disableAssignedCharacters();
