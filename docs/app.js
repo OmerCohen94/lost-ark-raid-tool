@@ -846,9 +846,24 @@ async function createRaidGroup(raidId, minItemLevel) {
     }
 
     try {
+        // Fetch the number of existing groups for this raid
+        const { count: existingGroupsCount, error: countError } = await supabase
+            .from('groups')
+            .select('*', { count: 'exact' })
+            .eq('raid_id', raidId);
+
+        if (countError) {
+            console.error('Error fetching existing groups count:', countError);
+            return { error: 'Error fetching existing groups count.' };
+        }
+
+        // Generate the group name
+        const groupName = `Group ${existingGroupsCount + 1}`;
+
+        // Insert the new group
         const { data: newGroup, error } = await supabase
             .from('groups')
-            .insert([{ raid_id: raidId, min_item_level: minItemLevel }])
+            .insert([{ raid_id: raidId, min_item_level: minItemLevel, group_name: groupName }])
             .select()
             .single();
 
@@ -857,7 +872,7 @@ async function createRaidGroup(raidId, minItemLevel) {
             return { error: 'Error creating group.' };
         }
 
-        console.log(`Group created successfully: ${newGroup.group_name}`);
+        console.log(`Group "${groupName}" created successfully.`);
         return { success: true };
     } catch (error) {
         console.error('Unexpected error creating group:', error);
