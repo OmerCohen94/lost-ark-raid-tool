@@ -866,14 +866,18 @@ async function updateCharacterOptions(playerSelect, characterSelect, groupId) {
 }
 
 // Function to create a raid group SUPABASE
-const createRaidGroup = async (raid_id, min_item_level) => {
-    if (!raid_id || min_item_level === null || min_item_level === undefined) {
-        console.error('Raid ID and minimum item level are required');
-        return { error: 'Raid ID and minimum item level are required' };
-    }
+let isCreatingGroup = false; // Prevent duplicate submissions
+async function createRaidGroup(raid_id, min_item_level) {
+    if (isCreatingGroup) return; // Prevent duplicate calls
+    isCreatingGroup = true;
 
     try {
-        // Fetch the raid name using the correct column name
+        if (!raid_id || min_item_level === null || min_item_level === undefined) {
+            alert('Raid ID and minimum item level are required');
+            isCreatingGroup = false;
+            return;
+        }
+
         const { data: raid, error: raidError } = await supabase
             .from('raids')
             .select('name')
@@ -882,12 +886,13 @@ const createRaidGroup = async (raid_id, min_item_level) => {
 
         if (raidError || !raid) {
             console.error('Error fetching raid:', raidError || 'Raid not found');
-            return { error: 'Raid not found' };
+            alert('Error fetching raid');
+            isCreatingGroup = false;
+            return;
         }
 
         const raidName = raid.name;
 
-        // Count existing groups for the raid
         const { count: groupCount, error: countError } = await supabase
             .from('groups')
             .select('*', { count: 'exact' })
@@ -895,42 +900,31 @@ const createRaidGroup = async (raid_id, min_item_level) => {
 
         if (countError) {
             console.error('Error counting groups:', countError);
-            return { error: 'Error counting groups' };
+            isCreatingGroup = false;
+            return;
         }
 
         const nextGroupNumber = (groupCount || 0) + 1;
         const groupName = `Group ${nextGroupNumber}`;
 
-        // Insert the new group
-        const { data: newGroup, error: insertError } = await supabase
+        const { error: insertError } = await supabase
             .from('groups')
-            .insert([
-                {
-                    raid_id,
-                    group_name: groupName,
-                    min_item_level,
-                },
-            ])
-            .select('id')
-            .single();
+            .insert([{ raid_id, group_name: groupName, min_item_level }]);
 
-        if (insertError || !newGroup) {
+        if (insertError) {
             console.error('Error creating group:', insertError);
-            return { error: 'Error creating group' };
+            alert('Error creating group');
+        } else {
+            console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
         }
 
-        console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
-        return {
-            id: newGroup.id,
-            group_name: groupName,
-            raid_name: raidName,
-            min_item_level,
-        };
+        await loadExistingGroups(raid_id); // Refresh the groups
     } catch (error) {
         console.error('Unexpected error creating group:', error);
-        return { error: 'Unexpected server error' };
+    } finally {
+        isCreatingGroup = false; // Reset the flag
     }
-};
+}
 
 // Function to delete a raid group SUPABASE
 async function deleteRaidGroup(groupId) {
@@ -1072,6 +1066,7 @@ async function handlePlayerSelection(playerSelect) {
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raid_id = null) {
     try {
+        // Fetch groups with or without filtering by raid_id
         const groups = await fetchGroupsWithSlots(raid_id);
 
         if (groups.error) {
@@ -1080,19 +1075,22 @@ async function loadExistingGroups(raid_id = null) {
         }
 
         const groupsContainer = document.getElementById('groups-container');
-        groupsContainer.innerHTML = ''; // Clear previous content
+        groupsContainer.innerHTML = ''; // Clear previous content to prevent duplicates
 
         for (const group of groups) {
+            // Create a container for the group
             const groupDiv = document.createElement('div');
             groupDiv.classList.add('raid-group');
             groupDiv.setAttribute('data-group-id', group.id);
 
+            // Create group header with name and slots count
             const groupHeader = document.createElement('div');
             groupHeader.classList.add('d-flex', 'justify-content-between', 'align-items-center');
 
             const headerText = document.createElement('h3');
             headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
 
+            // Minimize button
             const minimizeButton = document.createElement('button');
             minimizeButton.textContent = '−';
             minimizeButton.classList.add('btn', 'btn-secondary', 'btn-sm', 'ml-auto');
@@ -1102,6 +1100,7 @@ async function loadExistingGroups(raid_id = null) {
                 minimizeButton.textContent = table.style.display === 'none' ? '+' : '−';
             };
 
+            // Save button
             const saveButton = document.createElement('button');
             saveButton.textContent = 'Save';
             saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
@@ -1120,6 +1119,7 @@ async function loadExistingGroups(raid_id = null) {
                 await updateGroupSlots(group.id, headerText);
             };
 
+            // Clear button
             const clearButton = document.createElement('button');
             clearButton.textContent = 'Clear';
             clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
@@ -1128,6 +1128,7 @@ async function loadExistingGroups(raid_id = null) {
                 await updateGroupSlots(group.id, headerText);
             };
 
+            // Delete button
             const deleteButton = document.createElement('button');
             deleteButton.textContent = 'X';
             deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
@@ -1136,6 +1137,7 @@ async function loadExistingGroups(raid_id = null) {
                 await loadExistingGroups(raid_id);
             };
 
+            // Append buttons to header
             groupHeader.appendChild(headerText);
             groupHeader.appendChild(minimizeButton);
             groupHeader.appendChild(saveButton);
@@ -1143,6 +1145,7 @@ async function loadExistingGroups(raid_id = null) {
             groupHeader.appendChild(deleteButton);
             groupDiv.appendChild(groupHeader);
 
+            // Create table for group
             const table = document.createElement('table');
             table.classList.add('assignment-table');
 
@@ -1166,6 +1169,7 @@ async function loadExistingGroups(raid_id = null) {
             `;
             table.appendChild(roleHeaderRow);
 
+            // Add rows for group slots
             for (let i = 0; i < 4; i++) {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -1198,11 +1202,13 @@ async function loadExistingGroups(raid_id = null) {
             groupDiv.appendChild(table);
             groupsContainer.appendChild(groupDiv);
 
+            // Populate dropdowns for players
             const playerSelects = groupDiv.querySelectorAll('.player-select');
             for (const select of playerSelects) {
                 await populatePlayerDropdown(group.id, select);
             }
 
+            // Restore previous selections
             await restoreDropdownSelections(group.id);
         }
     } catch (error) {
