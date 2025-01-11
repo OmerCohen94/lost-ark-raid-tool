@@ -878,7 +878,7 @@ console.log(`Group members for group ID ${groupId} cleared successfully.`);
 }
 
 
-// Function to save group members and disable selected options
+// Ensure group_id is properly included in the members array before saving
 async function saveGroupMembers(groupId, members) {
     if (!groupId || !members || members.length === 0) {
         console.error('Group ID and valid members data are required');
@@ -886,9 +886,15 @@ async function saveGroupMembers(groupId, members) {
     }
 
     try {
+        // Add group_id to each member before upserting
+        const membersWithGroupId = members.map(member => ({
+            ...member,
+            group_id: groupId, // Ensure group_id is included
+        }));
+
         const { error } = await supabase
             .from('group_members')
-            .upsert(members, { onConflict: ['group_id', 'player_id', 'character_id'] });
+            .upsert(membersWithGroupId, { onConflict: ['group_id', 'player_id', 'character_id'] });
 
         if (error) {
             console.error('Error saving group members:', error);
@@ -896,38 +902,6 @@ async function saveGroupMembers(groupId, members) {
         }
 
         console.log('Group members saved successfully');
-
-        // Update dropdowns to disable already selected players and characters
-        const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
-        if (!groupElement) return;
-
-        const playerSelects = groupElement.querySelectorAll('.player-select');
-        const characterSelects = groupElement.querySelectorAll('.character-select');
-
-        playerSelects.forEach(playerSelect => {
-            const selectedValue = playerSelect.value;
-            if (selectedValue) {
-                const options = document.querySelectorAll(`.player-select option[value="${selectedValue}"]`);
-                options.forEach(option => {
-                    if (option.parentElement !== playerSelect) {
-                        option.disabled = true;
-                    }
-                });
-            }
-        });
-
-        characterSelects.forEach(characterSelect => {
-            const selectedValue = characterSelect.value;
-            if (selectedValue) {
-                const options = document.querySelectorAll(`.character-select option[value="${selectedValue}"]`);
-                options.forEach(option => {
-                    if (option.parentElement !== characterSelect) {
-                        option.disabled = true;
-                    }
-                });
-            }
-        });
-
         return { success: true };
     } catch (error) {
         console.error('Unexpected error saving group members:', error);
