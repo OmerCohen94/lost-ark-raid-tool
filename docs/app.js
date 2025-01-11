@@ -950,7 +950,7 @@ async function loadExistingGroups(raidId = null) {
         const groupsContainer = document.getElementById('groups-container');
         groupsContainer.innerHTML = ''; // Clear previous content to prevent duplicates
 
-        if (groups.length === 0) {
+        if (!groups || groups.length === 0) {
             console.log('No groups found for the selected raid.');
             return;
         }
@@ -968,7 +968,6 @@ async function loadExistingGroups(raidId = null) {
             headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
 
             groupHeader.appendChild(headerText);
-            groupDiv.appendChild(groupHeader);
 
             // Minimize button
             const minimizeButton = document.createElement('button');
@@ -1000,6 +999,7 @@ async function loadExistingGroups(raidId = null) {
                 }
 
                 await updateGroupSlots(groupId, headerText);
+                await disableAssignedCharacters(); // Disable already assigned characters
                 await updatePlayerList(groupId, playerListContainer); // Update player list
             };
 
@@ -1011,6 +1011,7 @@ async function loadExistingGroups(raidId = null) {
                 const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
                 await resetGroup(groupId);
                 await updateGroupSlots(groupId, headerText);
+                await disableAssignedCharacters(); // Disable already assigned characters
                 await updatePlayerList(groupId, playerListContainer); // Clear player list
             };
 
@@ -1028,6 +1029,7 @@ async function loadExistingGroups(raidId = null) {
                 }
 
                 await deleteRaidGroup(groupId, raidId);
+                await disableAssignedCharacters(); // Disable already assigned characters
             };
 
             // Append buttons to header
@@ -1036,13 +1038,7 @@ async function loadExistingGroups(raidId = null) {
             groupHeader.appendChild(clearButton);
             groupHeader.appendChild(deleteButton);
 
-            // Player list container (Below group name and 0/8 slots)
-            const playerListContainer = document.createElement('div');
-            playerListContainer.classList.add('player-list', 'mt-2'); // Add margin for spacing
-            playerListContainer.textContent = 'No players added yet.'; // Placeholder
-
             groupDiv.appendChild(groupHeader);
-            groupDiv.appendChild(playerListContainer);
 
             const table = document.createElement('table');
             table.classList.add('assignment-table');
@@ -1083,17 +1079,6 @@ async function loadExistingGroups(raidId = null) {
                         </select>
                     </td>
                     <td>${i < 3 ? 'DPS' : 'Support'}</td>
-                    <td>
-                        <select class="player-select form-control">
-                            <option value="" disabled selected>Select Player</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select class="character-select form-control" disabled>
-                            <option value="" disabled selected>Select Character</option>
-                        </select>
-                    </td>
-                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
                 `;
 
                 table.appendChild(row);
@@ -1108,8 +1093,7 @@ async function loadExistingGroups(raidId = null) {
                 await populatePlayerDropdown(group.id, select);
             }
 
-            // Update player list
-            await updatePlayerList(group.id, playerListContainer);
+            await disableAssignedCharacters(); // Disable already assigned characters
         }
     } catch (error) {
         console.error('Error loading groups:', error);
