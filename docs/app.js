@@ -659,6 +659,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
         if (characters.error) {
             console.error('Error fetching characters:', characters.error);
             characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+            characterSelect.disabled = true;
             return;
         }
 
@@ -683,17 +684,17 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
             characterSelect.appendChild(option);
         });
 
+        // Enable dropdown after populating options
+        characterSelect.disabled = false;
+
         // Restore the saved character selection if provided
         if (savedCharacterId) {
             const savedCharacter = characters.find(char => char.id === savedCharacterId);
             if (savedCharacter) {
                 characterSelect.value = savedCharacterId;
-                characterSelect.disabled = false; // Enable dropdown
             } else {
                 console.warn(`Saved character ${savedCharacterId} is no longer valid.`);
             }
-        } else {
-            characterSelect.disabled = false; // Enable dropdown without changing selection
         }
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
