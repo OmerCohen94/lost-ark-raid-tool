@@ -784,30 +784,44 @@ async function createRaidGroup(raidId, minItemLevel) {
     }
 }
 
-// Function to delete a raid group SUPABASE
+// Function to delete a raid group
 async function deleteRaidGroup(groupId, raidId) {
     if (!groupId) {
         console.error('Group ID is required to delete a group.');
-        return;
+        return { error: 'Group ID is required' };
     }
 
     try {
-        const { error } = await supabase
+        // Delete all members associated with the group
+        const { error: membersError } = await supabase
+            .from('group_members')
+            .delete()
+            .eq('group_id', groupId);
+
+        if (membersError) {
+            console.error('Error deleting group members:', membersError);
+            return { error: 'Error deleting group members' };
+        }
+
+        // Delete the group itself
+        const { error: groupError } = await supabase
             .from('groups')
             .delete()
             .eq('id', groupId);
 
-        if (error) {
-            console.error('Error deleting raid group:', error);
-            return;
+        if (groupError) {
+            console.error('Error deleting raid group:', groupError);
+            return { error: 'Error deleting raid group' };
         }
 
-        console.log('Raid group deleted successfully: Group deleted successfully');
+        console.log('Raid group and its members deleted successfully.');
 
         // Refresh groups after deletion
-        await loadExistingGroups(raidId); // Pass raidId to refresh groups for the correct raid
+        await loadExistingGroups(raidId); // Refresh the UI with the remaining groups
+        return { success: true };
     } catch (error) {
         console.error('Unexpected error deleting raid group:', error);
+        return { error: 'Unexpected server error' };
     }
 }
 
@@ -834,6 +848,8 @@ async function resetGroup(groupId) {
 
         // Reset dropdowns in the UI
         const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+        if (!groupElement) return;
+
         const playerSelects = groupElement.querySelectorAll('.player-select');
         const characterSelects = groupElement.querySelectorAll('.character-select');
 
@@ -855,6 +871,7 @@ async function resetGroup(groupId) {
     }
 }
 
+
 // Function to save group members and disable selected options
 async function saveGroupMembers(groupId, members) {
     if (!groupId || !members || members.length === 0) {
@@ -874,8 +891,10 @@ async function saveGroupMembers(groupId, members) {
 
         console.log('Group members saved successfully');
 
-        // Refresh dropdowns to disable already selected options
+        // Update dropdowns to disable already selected players and characters
         const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+        if (!groupElement) return;
+
         const playerSelects = groupElement.querySelectorAll('.player-select');
         const characterSelects = groupElement.querySelectorAll('.character-select');
 
