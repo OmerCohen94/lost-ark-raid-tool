@@ -662,9 +662,10 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
             return;
         }
 
-        // Reset dropdown
-        characterSelect.innerHTML = '<option value="" disabled>Select Character</option>';
+        // Reset dropdown to its default state
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
 
+        // Populate the dropdown with character options
         characters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.id;
@@ -690,11 +691,9 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
                 characterSelect.disabled = false; // Enable dropdown
             } else {
                 console.warn(`Saved character ${savedCharacterId} is no longer valid.`);
-                characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-                characterSelect.disabled = true;
             }
         } else {
-            characterSelect.disabled = false; // Enable dropdown
+            characterSelect.disabled = false; // Enable dropdown without changing selection
         }
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
