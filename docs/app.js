@@ -1066,7 +1066,6 @@ async function handlePlayerSelection(playerSelect) {
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raid_id = null) {
     try {
-        // Fetch groups with or without filtering by raid_id
         const groups = await fetchGroupsWithSlots(raid_id);
 
         if (groups.error) {
@@ -1078,98 +1077,22 @@ async function loadExistingGroups(raid_id = null) {
         groupsContainer.innerHTML = ''; // Clear previous content to prevent duplicates
 
         for (const group of groups) {
-            // Create a container for the group
             const groupDiv = document.createElement('div');
             groupDiv.classList.add('raid-group');
             groupDiv.setAttribute('data-group-id', group.id);
 
-            // Create group header with name and slots count
             const groupHeader = document.createElement('div');
             groupHeader.classList.add('d-flex', 'justify-content-between', 'align-items-center');
 
             const headerText = document.createElement('h3');
             headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
 
-            // Minimize button
-            const minimizeButton = document.createElement('button');
-            minimizeButton.textContent = '−';
-            minimizeButton.classList.add('btn', 'btn-secondary', 'btn-sm', 'ml-auto');
-            minimizeButton.onclick = () => {
-                const table = groupDiv.querySelector('.assignment-table');
-                table.style.display = table.style.display === 'none' ? 'table' : 'none';
-                minimizeButton.textContent = table.style.display === 'none' ? '+' : '−';
-            };
-
-            // Save button
-            const saveButton = document.createElement('button');
-            saveButton.textContent = 'Save';
-            saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
-            saveButton.onclick = async () => {
-                const members = collectGroupMembers(groupDiv);
-                if (!members || members.length === 0) {
-                    alert('Please select valid players and characters before saving.');
-                    return;
-                }
-                const result = await saveGroupMembers(group.id, members);
-                if (result.error) {
-                    alert(`Error: ${result.error}`);
-                } else {
-                    console.log(result.message);
-                }
-                await updateGroupSlots(group.id, headerText);
-            };
-
-            // Clear button
-            const clearButton = document.createElement('button');
-            clearButton.textContent = 'Clear';
-            clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
-            clearButton.onclick = async () => {
-                await resetGroup(group.id);
-                await updateGroupSlots(group.id, headerText);
-            };
-
-            // Delete button
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = 'X';
-            deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
-            deleteButton.onclick = async () => {
-                await deleteRaidGroup(group.id);
-                await loadExistingGroups(raid_id);
-            };
-
-            // Append buttons to header
             groupHeader.appendChild(headerText);
-            groupHeader.appendChild(minimizeButton);
-            groupHeader.appendChild(saveButton);
-            groupHeader.appendChild(clearButton);
-            groupHeader.appendChild(deleteButton);
             groupDiv.appendChild(groupHeader);
 
-            // Create table for group
             const table = document.createElement('table');
             table.classList.add('assignment-table');
 
-            const partyHeaderRow = document.createElement('tr');
-            partyHeaderRow.classList.add('party-header');
-            partyHeaderRow.innerHTML = `
-                <th colspan="3">Party 1</th>
-                <th colspan="3">Party 2</th>
-            `;
-            table.appendChild(partyHeaderRow);
-
-            const roleHeaderRow = document.createElement('tr');
-            roleHeaderRow.classList.add('role-header');
-            roleHeaderRow.innerHTML = `
-                <th>Player</th>
-                <th>Character</th>
-                <th>Role</th>
-                <th>Player</th>
-                <th>Character</th>
-                <th>Role</th>
-            `;
-            table.appendChild(roleHeaderRow);
-
-            // Add rows for group slots
             for (let i = 0; i < 4; i++) {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -1183,18 +1106,6 @@ async function loadExistingGroups(raid_id = null) {
                             <option value="" disabled selected>Select Character</option>
                         </select>
                     </td>
-                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
-                    <td>
-                        <select class="player-select form-control" onchange="handlePlayerSelection(this)">
-                            <option value="" disabled>Select Player</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select class="character-select form-control" disabled>
-                            <option value="" disabled selected>Select Character</option>
-                        </select>
-                    </td>
-                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
                 `;
                 table.appendChild(row);
             }
@@ -1202,19 +1113,16 @@ async function loadExistingGroups(raid_id = null) {
             groupDiv.appendChild(table);
             groupsContainer.appendChild(groupDiv);
 
-            // Populate dropdowns for players
             const playerSelects = groupDiv.querySelectorAll('.player-select');
             for (const select of playerSelects) {
                 await populatePlayerDropdown(group.id, select);
             }
-
-            // Restore previous selections
-            await restoreDropdownSelections(group.id);
         }
     } catch (error) {
         console.error('Error loading groups:', error);
     }
 }
+
 
 // Update slots count dynamically SUPABASE
 async function updateGroupSlots(groupId, headerTextElement) {
