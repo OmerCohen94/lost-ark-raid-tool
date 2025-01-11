@@ -779,57 +779,41 @@ function populatePlayerDropdownFromCache(players, playerSelect, preselectedPlaye
     playerSelect.disabled = false;
 }
 
-// Function to create a raid group SUPABASE
+// Function to create a new raid group
 let isCreatingGroup = false; // Prevent duplicate submissions
 async function createRaidGroup(raidId, minItemLevel) {
-    if (isCreatingGroup) {
-        console.warn('A group creation is already in progress. Ignoring this request.');
-        return { error: 'A group creation is already in progress' }; // Log a warning, no need for UI alert
-    }
-
+    if (isCreatingGroup) return { error: 'A group creation is already in progress' };
     isCreatingGroup = true;
 
-    if (!raidId || minItemLevel === null || minItemLevel === undefined) {
-        console.error('Raid ID and minimum item level are required.');
-        isCreatingGroup = false; // Reset flag
-        return { error: 'Raid ID and minimum item level are required.' };
-    }
-
     try {
-        const { count: existingGroupsCount, error: countError } = await supabase
-            .from('groups')
-            .select('*', { count: 'exact' })
-            .eq('raid_id', raidId);
-
-        if (countError) {
-            console.error('Error fetching existing groups count:', countError);
-            isCreatingGroup = false; // Reset flag
-            return { error: 'Error fetching existing groups count.' };
+        if (!raidId || minItemLevel === null || minItemLevel === undefined) {
+            return { error: 'Raid ID and minimum item level are required' };
         }
 
-        const groupName = `Group ${existingGroupsCount + 1}`;
-
-        const { data: newGroup, error } = await supabase
+        const { data: newGroup, error: insertError } = await supabase
             .from('groups')
-            .insert([{ raid_id: raidId, min_item_level: minItemLevel, group_name: groupName }])
+            .insert([{ raid_id: raidId, min_item_level: minItemLevel }])
             .select()
             .single();
 
-        if (error || !newGroup) {
-            console.error('Error creating group:', error || 'No data returned');
-            isCreatingGroup = false; // Reset flag
-            return { error: 'Error creating group.' };
+        if (insertError || !newGroup) {
+            console.error('Error creating group:', insertError || 'No data returned');
+            return { error: 'Error creating group' };
         }
 
-        console.log(`Group "${groupName}" created successfully.`);
-        return { success: true };
+        console.log(`Group "${newGroup.group_name}" created successfully.`);
+        await loadExistingGroups(raidId); // Refresh groups
+        await disableAssignedCharacters(); // Ensure assigned characters are disabled
+
+        return { group_name: newGroup.group_name };
     } catch (error) {
         console.error('Unexpected error creating group:', error);
-        return { error: 'Unexpected error creating group.' };
+        return { error: 'Unexpected error creating group' };
     } finally {
-        isCreatingGroup = false; // Reset flag after process completion
+        isCreatingGroup = false; // Reset flag
     }
 }
+
 
 // Function to delete a raid group
 async function deleteRaidGroup(groupId, raidId) {
@@ -917,7 +901,7 @@ async function resetGroup(groupId) {
     }
 }
 
-// Function to save group members and disable selected options
+// Function to save group members and prevent duplicate character assignments
 async function saveGroupMembers(groupId, members) {
     if (!groupId || !members || members.length === 0) {
         console.error('Group ID and valid members data are required');
@@ -925,6 +909,35 @@ async function saveGroupMembers(groupId, members) {
     }
 
     try {
+        // Fetch the group to determine raid_id
+        const { data: group, error: groupError } = await supabase
+            .from('groups')
+            .select('raid_id')
+            .eq('id', groupId)
+            .single();
+
+        if (groupError || !group) {
+            console.error('Error fetching group details:', groupError || 'Group not found');
+            return { error: 'Error fetching group details' };
+        }
+
+        const raidId = group.raid_id;
+
+        // Validate that no character is already assigned to another group in the same raid
+        for (const member of members) {
+            const { data: conflict, error: conflictError } = await supabase
+                .from('group_members')
+                .select('group_id, groups(group_name)')
+                .eq('character_id', member.character_id)
+                .eq('groups.raid_id', raidId)
+                .neq('group_id', groupId)
+                .single();
+
+            if (conflictError === null && conflict) {
+                return { error: `Character is already assigned to ${conflict.groups.group_name} in this raid.` };
+            }
+        }
+
         // Add group_id to each member before upserting
         const membersWithGroupId = members.map(member => ({
             ...member,
@@ -942,24 +955,8 @@ async function saveGroupMembers(groupId, members) {
 
         console.log('Group members saved successfully');
 
-        // Disable dropdown options for already assigned players
-        const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
-        if (!groupElement) return;
-
-        const playerSelects = groupElement.querySelectorAll('.player-select');
-
-        playerSelects.forEach(playerSelect => {
-            const selectedValue = playerSelect.value;
-            if (selectedValue) {
-                const options = document.querySelectorAll(`.player-select option[value="${selectedValue}"]`);
-                options.forEach(option => {
-                    if (option.parentElement !== playerSelect) {
-                        option.disabled = true; // Disable the option in other dropdowns
-                        option.textContent = `${option.textContent.split(' - ')[0]} - Already in group`;
-                    }
-                });
-            }
-        });
+        // Disable dropdown options for already assigned characters
+        await disableAssignedCharacters();
 
         return { success: true };
     } catch (error) {
