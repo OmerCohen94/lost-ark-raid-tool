@@ -729,37 +729,40 @@ window.setMinItemLevel = async () => {
 
 // Function to populate characters in a dropdown SUPABASE
 async function populateCharacterDropdown(playerId, groupId, characterSelect) {
-    if (!playerId) {
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        characterSelect.disabled = true;
+    if (!playerId || !groupId) {
+        console.error('Player ID and Group ID are required');
         return;
     }
 
     try {
         const characters = await fetchCharactersForPlayer(playerId, groupId);
 
-        if (!characters.error) {
-            characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-            characters.forEach(character => {
-                const option = document.createElement('option');
-                option.value = character.id;
-                option.textContent = `${character.classes.name} (${character.item_level})`;
-
-                if (character.assigned_to_group) {
-                    option.textContent += ` - Assigned to ${character.assigned_to_group}`;
-                    option.disabled = true;
-                } else if (!character.meets_min_item_level) {
-                    option.textContent += ` - Below Min IL`;
-                    option.disabled = true;
-                }
-
-                characterSelect.appendChild(option);
-            });
-            characterSelect.disabled = false;
-        } else {
+        if (characters.error) {
             console.error('Error fetching characters:', characters.error);
             characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+            return;
         }
+
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+
+        characters.forEach(character => {
+            const option = document.createElement('option');
+            option.value = character.id;
+
+            if (character.item_level < character.min_item_level) {
+                option.disabled = true;
+                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Item level)`;
+            } else if (character.assigned_to_group) {
+                option.disabled = true;
+                option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
+            } else {
+                option.textContent = `${character.classes.name} (${character.item_level})`;
+            }
+
+            characterSelect.appendChild(option);
+        });
+
+        characterSelect.disabled = false;
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
