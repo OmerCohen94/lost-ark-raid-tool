@@ -95,3 +95,9 @@ h1, h2, h3 {
     opacity: 1; /* Ensure buttons are fully opaque */
 }
 
+.raid-group .player-list {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.5;
+}
+
