@@ -614,8 +614,10 @@ window.setMinItemLevel = async () => {
 };
 
 // Function to add event listeners to player selection
-function initializePlayerSelectListeners() {
+function initializePlayerAndCharacterListeners() {
     const playerSelects = document.querySelectorAll('.player-select');
+    const characterSelects = document.querySelectorAll('.character-select');
+
     playerSelects.forEach(playerSelect => {
         playerSelect.addEventListener('change', async (event) => {
             const playerId = event.target.value; // Get the selected player ID
@@ -627,11 +629,25 @@ function initializePlayerSelectListeners() {
                 // Clear and disable the character dropdown if no player is selected
                 characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
                 characterSelect.disabled = true;
+                saveDropdownSelections(groupId); // Save the state
                 return;
             }
 
             // Fetch and populate characters
             await populateCharacterDropdown(playerId, groupId, characterSelect);
+
+            // Save the updated dropdown selections
+            saveDropdownSelections(groupId);
+        });
+    });
+
+    characterSelects.forEach(characterSelect => {
+        characterSelect.addEventListener('change', (event) => {
+            const groupElement = characterSelect.closest('.raid-group');
+            const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
+
+            // Save the updated dropdown selections
+            saveDropdownSelections(groupId);
         });
     });
 }
@@ -678,6 +694,46 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
     }
+}
+
+// Function to save dropdown selections in local storage
+function saveDropdownSelections(groupId) {
+    const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+    if (!groupElement) return;
+
+    const playerSelects = groupElement.querySelectorAll('.player-select');
+    const characterSelects = groupElement.querySelectorAll('.character-select');
+
+    const selections = Array.from(playerSelects).map((playerSelect, index) => ({
+        player: playerSelect.value || null,
+        character: characterSelects[index]?.value || null,
+    }));
+
+    localStorage.setItem(`group_${groupId}_selections`, JSON.stringify(selections));
+}
+
+// Function to restore dropdown selection from local storage
+function restoreDropdownSelections(groupId) {
+    const savedSelections = localStorage.getItem(`group_${groupId}_selections`);
+    if (!savedSelections) return;
+
+    const selections = JSON.parse(savedSelections);
+    const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+    if (!groupElement) return;
+
+    const playerSelects = groupElement.querySelectorAll('.player-select');
+    const characterSelects = groupElement.querySelectorAll('.character-select');
+
+    selections.forEach((selection, index) => {
+        if (selection.player) {
+            playerSelects[index].value = selection.player;
+            playerSelects[index].dispatchEvent(new Event('change')); // Trigger change event
+        }
+
+        if (selection.character) {
+            characterSelects[index].value = selection.character;
+        }
+    });
 }
 
 // Function to populate players in a dropdown SUPABASE
@@ -794,6 +850,10 @@ async function createRaidGroup(raid_id, min_item_level) {
             console.error('Error creating group:', insertError || 'No data returned');
             return { error: 'Error creating group' };
         }
+
+        // Persist new group selections
+        restoreDropdownSelections(groupId);
+        initializePlayerAndCharacterListeners(groupId);
 
         console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
         await loadExistingGroups(raid_id); // Refresh groups
@@ -1031,8 +1091,15 @@ async function loadExistingGroups(raid_id = null) {
                 await populatePlayerDropdown(group.id, select);
             }
 
+            // Restore dropdown selections
+            restoreDropdownSelections(group.id);
+
+            // Initialize listeners for dropdowns
+            initializePlayerAndCharacterListeners(group.id);            
+
         }
-        initializePlayerSelectListeners();
+        initializePlayerAndCharacterListeners();
+
     } catch (error) {
         console.error('Error loading groups:', error);
     }
