@@ -746,25 +746,29 @@ async function createRaidGroup(raidId, minItemLevel) {
 }
 
 // Function to delete a raid group SUPABASE
-async function deleteRaidGroup(groupId) {
+async function deleteRaidGroup(groupId, raidId) {
     if (!groupId) {
-        console.error('Group ID is required');
-        return { error: 'Group ID is required' };
+        console.error('Group ID is required to delete a group.');
+        return;
     }
 
     try {
-        const result = await deleteGroup(groupId);
+        const { error } = await supabase
+            .from('groups')
+            .delete()
+            .eq('id', groupId);
 
-        if (result.error) {
-            console.error('Error deleting raid group:', result.error);
-            return { error: result.error };
+        if (error) {
+            console.error('Error deleting raid group:', error);
+            return;
         }
 
-        console.log('Raid group deleted successfully:', result.message);
-        return { message: 'Raid group deleted successfully' };
+        console.log('Raid group deleted successfully: Group deleted successfully');
+
+        // Refresh groups after deletion
+        await loadExistingGroups(raidId); // Pass raidId to refresh groups for the correct raid
     } catch (error) {
         console.error('Unexpected error deleting raid group:', error);
-        return { error: 'Unexpected server error' };
     }
 }
 
@@ -858,24 +862,24 @@ const saveGroupMembers = async (groupId, members) => {
     }
 };
 
-
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raidId = null) {
     try {
         const groups = await fetchGroupsWithSlots(raidId);
+
+        const groupsContainer = document.getElementById('groups-container');
+        groupsContainer.innerHTML = ''; // Clear previous content to prevent duplicates
 
         if (groups.length === 0) {
             console.log('No groups found for the selected raid.');
             return;
         }
 
-        const groupsContainer = document.getElementById('groups-container');
-        groupsContainer.innerHTML = ''; // Clear previous content to prevent duplicates
-
         for (const group of groups) {
             const groupDiv = document.createElement('div');
             groupDiv.classList.add('raid-group');
             groupDiv.setAttribute('data-group-id', group.id);
+            groupDiv.setAttribute('data-raid-id', group.raid_id); // Add raid ID for context
 
             const groupHeader = document.createElement('div');
             groupHeader.classList.add('d-flex', 'justify-content-between', 'align-items-center');
@@ -885,7 +889,6 @@ async function loadExistingGroups(raidId = null) {
 
             groupHeader.appendChild(headerText);
             groupDiv.appendChild(groupHeader);
-            groupsContainer.appendChild(groupDiv);
 
             // Minimize button
             const minimizeButton = document.createElement('button');
@@ -937,12 +940,17 @@ async function loadExistingGroups(raidId = null) {
             deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
             deleteButton.onclick = async () => {
                 const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
-                await deleteRaidGroup(groupId);
-                await loadExistingGroups(raid_id);
+                const raidId = parseInt(groupDiv.getAttribute('data-raid-id'), 10);
+
+                if (!groupId || !raidId) {
+                    alert('Group ID or Raid ID is missing.');
+                    return;
+                }
+
+                await deleteRaidGroup(groupId, raidId);
             };
 
             // Append buttons to header
-            groupHeader.appendChild(headerText);
             groupHeader.appendChild(minimizeButton);
             groupHeader.appendChild(saveButton);
             groupHeader.appendChild(clearButton);
