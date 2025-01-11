@@ -622,12 +622,10 @@ function initializePlayerAndCharacterListeners() {
             if (!playerId) {
                 characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
                 characterSelect.disabled = true;
-                saveDropdownSelections(groupId);
                 return;
             }
 
             await populateCharacterDropdown(playerId, groupId, characterSelect);
-            saveDropdownSelections(groupId);
         });
     });
 
@@ -635,7 +633,6 @@ function initializePlayerAndCharacterListeners() {
         characterSelect.addEventListener('change', (event) => {
             const groupElement = characterSelect.closest('.raid-group');
             const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
-            saveDropdownSelections(groupId);
         });
     });
 }
@@ -821,7 +818,6 @@ async function createRaidGroup(raid_id, min_item_level) {
 
         // Refresh groups and persist new group selections
         await loadExistingGroups(raid_id);
-        restoreDropdownSelections(groupId);
         initializePlayerAndCharacterListeners(groupId);
 
         return { group_name: groupName, group_id: groupId };
