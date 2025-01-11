@@ -8,7 +8,6 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // Query to get groups
 const fetchGroupsWithSlots = async () => {
     try {
-        // Fetch all groups and join with raids
         const { data: groups, error } = await supabase
             .from('groups')
             .select(`
@@ -24,17 +23,14 @@ const fetchGroupsWithSlots = async () => {
             return [];
         }
 
-        // Process the results to calculate filled_slots and total_slots
-        const processedGroups = groups.map(group => ({
+        return groups.map(group => ({
             id: group.id,
             group_name: group.group_name,
             min_item_level: group.min_item_level,
             raid_name: group.raids?.name || 'Unknown Raid',
-            filled_slots: group.group_members?.length || 0, // Count the group members
-            total_slots: 8, // Assuming a fixed 8 slots per group
+            filled_slots: group.group_members?.length || 0,
+            total_slots: 8, // Assuming fixed slots
         }));
-
-        return processedGroups;
     } catch (error) {
         console.error('Unexpected error fetching groups:', error);
         return [];
@@ -66,7 +62,7 @@ const addPlayer = async (username) => {
     }
 };
 
-// Query to get players
+// Query to get players for group dropdown
 const fetchPlayersForGroup = async (group_id) => {
     if (!group_id) {
         console.error('Group ID is required');
@@ -113,25 +109,30 @@ const fetchPlayersForGroup = async (group_id) => {
             );
 
             if (eligibleCharacters.length > 0) {
-                const assignedCharacters = await supabase
+                const { data: assignedCharacters, error: assignmentError } = await supabase
                     .from('group_members')
-                    .select('character_id')
+                    .select(`
+                        character_id,
+                        groups!group_members_group_id_fkey (raid_id)
+                    `)
                     .in('character_id', eligibleCharacters.map(char => char.id))
-                    .eq('group_id.raid_id', raid_id);
+                    .eq('groups.raid_id', raid_id);
 
-                if (!assignedCharacters.data || assignedCharacters.data.length === 0) {
-                    eligiblePlayers.push({
-                        id: player.id,
-                        username: player.username,
-                        has_eligible_characters: true,
-                    });
-                } else {
-                    eligiblePlayers.push({
-                        id: player.id,
-                        username: player.username,
-                        has_eligible_characters: false,
-                    });
+                if (assignmentError) {
+                    console.error('Error fetching assigned characters:', assignmentError);
+                    return { error: 'Error fetching assigned characters' };
                 }
+
+                const assignedCharacterIds = assignedCharacters.map(ac => ac.character_id);
+                const hasUnassignedCharacters = eligibleCharacters.some(
+                    char => !assignedCharacterIds.includes(char.id)
+                );
+
+                eligiblePlayers.push({
+                    id: player.id,
+                    username: player.username,
+                    has_eligible_characters: hasUnassignedCharacters,
+                });
             } else {
                 eligiblePlayers.push({
                     id: player.id,
