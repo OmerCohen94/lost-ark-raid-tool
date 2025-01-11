@@ -214,30 +214,24 @@ window.fetchRaids = async () => {
 };
 
 // Query to get members of specific group
-const collectGroupMembers = async (group_id) => {
-    try {
-        const { data: members, error } = await supabase
-            .from('group_members')
-            .select(`
-                group_id,
-                player_id,
-                character_id,
-                players ( username ),
-                characters ( name, item_level )
-            `)
-            .eq('group_id', group_id);
+function collectGroupMembers(groupElement) {
+    const rows = groupElement.querySelectorAll('tr');
+    const members = [];
 
-        if (error) {
-            console.error('Error fetching group members:', error);
-            return { error: 'Error fetching group members' };
+    rows.forEach(row => {
+        const playerSelect = row.querySelector('.player-select');
+        const characterSelect = row.querySelector('.character-select');
+
+        if (playerSelect && playerSelect.value && characterSelect && characterSelect.value) {
+            members.push({
+                player_id: parseInt(playerSelect.value, 10),
+                character_id: parseInt(characterSelect.value, 10),
+            });
         }
+    });
 
-        return members;
-    } catch (error) {
-        console.error('Unexpected error fetching group members:', error);
-        return { error: 'Unexpected server error' };
-    }
-};
+    return members;
+}
 
 // Query to save members in specific group
 const updateGroupMembers = async (group_id, members) => {
@@ -1103,9 +1097,14 @@ async function loadExistingGroups(raid_id = null) {
             saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
             saveButton.onclick = async () => {
                 const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10); // Ensure group_id is an integer
-                const members = collectGroupMembers(groupDiv);
+                if (!groupId || isNaN(groupId)) {
+                    console.error('Invalid group ID:', groupId);
+                    alert('Failed to identify the group. Please refresh the page and try again.');
+                    return;
+                }
             
-                if (!groupId || !members || members.length === 0) {
+                const members = collectGroupMembers(groupDiv);
+                if (!members || members.length === 0) {
                     console.error('Group ID and valid members data are required');
                     alert('Please select valid players and characters before saving.');
                     return;
@@ -1120,6 +1119,7 @@ async function loadExistingGroups(raid_id = null) {
             
                 await updateGroupSlots(groupId, headerText);
             };
+            
             
             // Add Clear Button
             const clearButton = document.createElement('button');
