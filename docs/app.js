@@ -652,65 +652,6 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
         return;
     }
 
-    // Add a loading indicator to inform the user
-    characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
-    characterSelect.disabled = true;
-
-    try {
-        const characters = await fetchCharactersForPlayer(playerId, groupId);
-
-        if (characters.error) {
-            console.error('Error fetching characters:', characters.error);
-            characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-            characterSelect.disabled = true;
-            return;
-        }
-
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-
-        characters.forEach(character => {
-            const option = document.createElement('option');
-            option.value = character.id;
-
-            if (!character.is_eligible) {
-                option.disabled = true;
-                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL)`;
-            } else if (character.assigned_to_group) {
-                option.disabled = true;
-                option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
-            } else {
-                option.textContent = `${character.classes.name} (${character.item_level})`;
-            }
-
-            characterSelect.appendChild(option);
-        });
-
-        if (savedCharacterId) {
-            const savedCharacter = characters.find(char => char.id === savedCharacterId);
-            if (savedCharacter) {
-                characterSelect.value = savedCharacterId;
-            } else {
-                console.warn(`Saved character ${savedCharacterId} is no longer valid.`);
-            }
-        }
-
-        characterSelect.disabled = false; // Enable dropdown after populating
-    } catch (error) {
-        console.error('Unexpected error populating character dropdown:', error);
-        characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-        characterSelect.disabled = true;
-    }
-}
-
-// Function to populate players in a dropdown SUPABASE
-async function populateCharacterDropdown(playerId, groupId, characterSelect, savedCharacterId = null) {
-    if (!playerId || !groupId) {
-        console.error('Player ID and Group ID are required');
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        characterSelect.disabled = true;
-        return;
-    }
-
     try {
         // Start fetching characters
         const characters = await fetchCharactersForPlayer(playerId, groupId);
@@ -758,6 +699,54 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
         characterSelect.disabled = true;
+    }
+}
+
+// Function to populate players in a dropdown SUPABASE
+async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId = null) {
+    try {
+        const players = await fetchPlayersForGroup(groupId);
+
+        if (!players.error) {
+            playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
+
+            for (const player of players) {
+                const option = document.createElement('option');
+                option.value = player.id;
+                option.textContent = player.username;
+
+                // Check if the player already has a character assigned to this group
+                const { data: assignedMembers, error } = await supabase
+                    .from('group_members')
+                    .select('player_id')
+                    .eq('group_id', groupId)
+                    .eq('player_id', player.id);
+
+                if (error) {
+                    console.error(`Error checking assignments for player ${player.username}:`, error);
+                }
+
+                // Disable the option if the player has a saved character in this group
+                if (assignedMembers && assignedMembers.length > 0) {
+                    option.disabled = true;
+                    option.textContent += ' - Already in group';
+                }
+
+                playerSelect.appendChild(option);
+            }
+
+            if (preselectedPlayerId) {
+                playerSelect.value = preselectedPlayerId;
+            }
+
+            playerSelect.disabled = false;
+        } else {
+            console.error('Error fetching players:', players.error);
+            playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
+        }
+    } catch (error) {
+        console.error('Unexpected error populating player dropdown:', error);
+        playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
     }
 }
 
