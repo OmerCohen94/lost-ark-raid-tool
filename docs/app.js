@@ -237,7 +237,7 @@ function collectGroupMembers(groupElement) {
             });
         } else {
             console.warn(
-                `Invalid selection in row ${index + 1}: Player ID (${playerSelect.value}), Character ID (${characterSelect.value})`
+                `Invalid selection in row ${index + 1}: Player ID (${playerSelect.value || 'none'}), Character ID (${characterSelect.value || 'none'})`
             );
         }
     });
