@@ -870,7 +870,7 @@ async function resetGroup(groupId) {
     }
 }
 
-// Ensure group_id is properly included in the members array before saving
+// Function to save group members and disable selected options
 async function saveGroupMembers(groupId, members) {
     if (!groupId || !members || members.length === 0) {
         console.error('Group ID and valid members data are required');
@@ -894,6 +894,25 @@ async function saveGroupMembers(groupId, members) {
         }
 
         console.log('Group members saved successfully');
+
+        // Disable dropdown options for already assigned players
+        const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+        if (!groupElement) return;
+
+        const playerSelects = groupElement.querySelectorAll('.player-select');
+
+        playerSelects.forEach(playerSelect => {
+            const selectedValue = playerSelect.value;
+            if (selectedValue) {
+                const options = document.querySelectorAll(`.player-select option[value="${selectedValue}"]`);
+                options.forEach(option => {
+                    if (option.parentElement !== playerSelect) {
+                        option.disabled = true; // Disable the option in other dropdowns
+                    }
+                });
+            }
+        });
+
         return { success: true };
     } catch (error) {
         console.error('Unexpected error saving group members:', error);
