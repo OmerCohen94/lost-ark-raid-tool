@@ -178,8 +178,11 @@ async function fetchGroupsWithSlots(raidId = null) {
                 id,
                 group_name,
                 min_item_level,
-                raids (name),
-                group_members:group_members_group_id_fkey (id)
+                raid_id,
+                raids (name), -- Fetch the raid name
+                group_members (
+                    id
+                ) -- Fetch members to calculate slots
             `);
 
         if (raidId) query.eq('raid_id', raidId);
@@ -191,9 +194,17 @@ async function fetchGroupsWithSlots(raidId = null) {
             return [];
         }
 
-        return data;
+        // Calculate slots for each group
+        const groupsWithSlots = data.map(group => ({
+            ...group,
+            raid_name: group.raids?.name || 'Unknown Raid', // Default if raid name is missing
+            filled_slots: group.group_members.length || 0, // Count members
+            total_slots: 8, // Assuming 8 slots per group
+        }));
+
+        return groupsWithSlots;
     } catch (error) {
-        console.error('Unexpected error fetching groups:', error);
+        console.error('Unexpected error fetching groups with slots:', error);
         return [];
     }
 }
@@ -930,12 +941,12 @@ const saveGroupMembers = async (groupId, members) => {
 
 
 // Function to load existing groups SUPABASE
-async function loadExistingGroups(raid_id = null) {
+async function loadExistingGroups(raidId = null) {
     try {
-        const groups = await fetchGroupsWithSlots(raid_id);
+        const groups = await fetchGroupsWithSlots(raidId);
 
-        if (groups.error) {
-            console.error('Error loading groups:', groups.error);
+        if (groups.length === 0) {
+            console.log('No groups found for the selected raid.');
             return;
         }
 
@@ -952,6 +963,10 @@ async function loadExistingGroups(raid_id = null) {
 
             const headerText = document.createElement('h3');
             headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
+
+            groupHeader.appendChild(headerText);
+            groupDiv.appendChild(groupHeader);
+            groupsContainer.appendChild(groupDiv);
 
             // Minimize button
             const minimizeButton = document.createElement('button');
