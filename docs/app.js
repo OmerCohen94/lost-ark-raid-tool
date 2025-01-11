@@ -840,7 +840,6 @@ async function populateRaidDropdown() {
 
 // Function to create a raid group SUPABASE
 let isCreatingGroup = false; // Prevent duplicate submissions
-
 async function createRaidGroup(raidId, minItemLevel) {
     if (isCreatingGroup) return { error: 'A group creation is already in progress' };
     isCreatingGroup = true;
@@ -889,7 +888,6 @@ async function createRaidGroup(raidId, minItemLevel) {
         isCreatingGroup = false; // Reset flag after process completion
     }
 }
-
 
 // Function to delete a raid group SUPABASE
 async function deleteRaidGroup(groupId) {
