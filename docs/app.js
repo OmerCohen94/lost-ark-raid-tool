@@ -1066,6 +1066,13 @@ async function loadExistingGroups(raidId = null) {
 
             groupDiv.appendChild(groupHeader);
 
+            // Player list container (Below group name and slots info)
+            const playerListContainer = document.createElement('div');
+            playerListContainer.classList.add('player-list', 'mt-2');
+            playerListContainer.textContent = 'Loading players...'; // Placeholder text while fetching data
+
+            groupDiv.appendChild(playerListContainer);
+
             const table = document.createElement('table');
             table.classList.add('assignment-table');
 
@@ -1129,15 +1136,17 @@ async function loadExistingGroups(raidId = null) {
             for (const select of playerSelects) {
                 await populatePlayerDropdown(group.id, select);
             }
-        }
 
-        // Disable already assigned characters across groups
-        await disableAssignedCharacters();
+            // Update Player List
+            await updatePlayerList(group.id, playerListContainer);
+
+            // Disable already assigned characters across groups
+            await disableAssignedCharacters();
+        }
     } catch (error) {
         console.error('Error loading groups:', error);
     }
 }
-
 
 // Function to dynamically update the player list
 async function updatePlayerList(groupId, container) {
