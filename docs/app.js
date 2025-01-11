@@ -25,19 +25,19 @@ if (error) {
 // Function to fetch static data from SUPABASE
 async function fetchFromStorage(filePath) {
     const { data, error } = await supabase.storage
-        .from('static-data') // Replace with your bucket name
+        .from('static-data') // Bucket name
         .download(filePath);
 
     if (error) {
-        console.error('Error fetching from storage:', error);
+        console.error(`Error fetching ${filePath} from storage:`, error);
         return null;
     }
 
     try {
-        const text = await data.text(); // Convert the file content to text
-        return JSON.parse(text); // Parse and return JSON data
+        const text = await data.text(); // Convert the file to text
+        return JSON.parse(text); // Parse and return JSON
     } catch (parseError) {
-        console.error('Error parsing JSON:', parseError);
+        console.error(`Error parsing JSON from ${filePath}:`, parseError);
         return null;
     }
 }
@@ -62,23 +62,16 @@ async function loadClassesDropdown(dropdownElement) {
 
 // Function to load raids into dropdowns
 async function fetchRaids() {
-    // Check in-memory cache first
-    if (cache.raids) {
-        console.log('Using cached raids');
-        return cache.raids;
-    }
+    if (cache.raids) return cache.raids; // In-memory cache
 
-    // Check localStorage cache
     const storedRaids = localStorage.getItem('raids');
     if (storedRaids) {
-        console.log('Using raids from localStorage');
         cache.raids = JSON.parse(storedRaids);
         return cache.raids;
     }
 
     try {
-        // Fetch raids from Supabase Storage
-        const raids = await fetchFromStorage('raids.json');
+        const raids = await fetchFromStorage('raids.json'); // Fetch from Supabase Storage
         if (raids) {
             cache.raids = raids; // Cache in memory
             localStorage.setItem('raids', JSON.stringify(raids)); // Persist to localStorage
@@ -398,9 +391,9 @@ const deleteGroup = async (group_id) => {
     }
 };
 
-// da fuck
+// Get raids into dropdowns
 async function loadRaidsDropdown(raidSelect) {
-    // Check in-memory cache first
+    // Check cache
     if (cache.raids) {
         console.log('Using cached raids');
         populateRaidDropdown(raidSelect, cache.raids);
@@ -408,11 +401,11 @@ async function loadRaidsDropdown(raidSelect) {
     }
 
     try {
-        const raids = await fetchFromStorage('raids.json'); // Fetch from Supabase Storage
+        const raids = await fetchRaids(); // Fetch raids from Supabase Storage
         if (raids) {
-            cache.raids = raids; // Store in cache
+            cache.raids = raids; // Cache in memory
             localStorage.setItem('raids', JSON.stringify(raids)); // Persist to localStorage
-            populateRaidDropdown(raidSelect, raids); // Populate dropdown
+            populateRaidDropdown(raidSelect, raids); // Populate the dropdown
         } else {
             raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
         }
@@ -422,14 +415,8 @@ async function loadRaidsDropdown(raidSelect) {
     }
 }
 
-// Helper function to populate the dropdown
-async function populateRaidDropdown(raidSelect) {
-    const raids = await fetchRaids();
-    if (!raids || raids.length === 0) {
-        raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
-        return;
-    }
-
+// Helper function to populate the raid dropdown
+function populateRaidDropdown(raidSelect, raids) {
     raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>';
     raids.forEach(raid => {
         const option = document.createElement('option');
