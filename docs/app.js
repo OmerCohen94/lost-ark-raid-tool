@@ -670,14 +670,10 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             const option = document.createElement('option');
             option.value = character.id;
 
-            // Determine eligibility based on item level and minimum item level
-            const isEligible = character.is_eligible; // Ensure this flag is correctly set in `fetchCharactersForPlayer`
-            const minItemLevel = character.min_item_level || 'Unknown'; // Provide fallback for missing min item level
-
-            if (!isEligible) {
+            if (!character.is_eligible) {
                 // Handle ineligibility due to item level
                 option.disabled = true;
-                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${minItemLevel})`;
+                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${character.min_item_level})`;
             } else if (character.assigned_to_group) {
                 // Handle characters already assigned to another group in the same raid
                 option.disabled = true;
