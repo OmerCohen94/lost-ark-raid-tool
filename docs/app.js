@@ -1045,8 +1045,7 @@ async function handlePlayerSelection(playerSelect) {
 }
 
 // Expose the function globally
-window.handlePlayerSelection = handlePlayerSelection;
-
+  window.handlePlayerSelection = handlePlayerSelection;
 
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raid_id = null) {
