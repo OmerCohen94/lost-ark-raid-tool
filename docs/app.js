@@ -908,6 +908,7 @@ async function saveGroupMembers(groupId, members) {
                 options.forEach(option => {
                     if (option.parentElement !== playerSelect) {
                         option.disabled = true; // Disable the option in other dropdowns
+                        option.textContent = `${option.textContent.split(' - ')[0]} - Already in group`;
                     }
                 });
             }
