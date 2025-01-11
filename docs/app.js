@@ -116,7 +116,7 @@ function clearGroupsCache(raidId = null) {
     }
 }
 
-// Updated Function to Get Eligible Characters and Players
+// Updated fetchEligibleCharacters to handle null playerId
 async function fetchEligibleCharacters(playerId, groupId) {
     try {
         // Fetch the group to determine raid_id
@@ -133,16 +133,20 @@ async function fetchEligibleCharacters(playerId, groupId) {
 
         const raidId = group.raid_id;
 
-        // Query eligible_characters view using the correct raid_id
-        const { data: eligibleCharacters, error: charactersError } = await supabase
-            .from('eligible_characters')
-            .select('*')
-            .eq('player_id', playerId)
-            .eq('raid_id', raidId);
+        // Fetch eligible characters only if playerId is provided
+        let eligibleCharacters = [];
+        if (playerId) {
+            const { data: characters, error: charactersError } = await supabase
+                .from('eligible_characters')
+                .select('*')
+                .eq('player_id', playerId)
+                .eq('raid_id', raidId);
 
-        if (charactersError) {
-            console.error('Error fetching eligible characters:', charactersError);
-            return { eligiblePlayers: [], eligibleCharacters: [] };
+            if (charactersError) {
+                console.error('Error fetching eligible characters:', charactersError);
+            } else {
+                eligibleCharacters = characters;
+            }
         }
 
         // Fetch all players and check their eligibility
@@ -164,7 +168,7 @@ async function fetchEligibleCharacters(playerId, groupId) {
         }));
 
         console.log(
-            `Fetched eligible characters for Player: ${playerId}, Raid: ${raidId}`,
+            `Fetched eligible characters for Player: ${playerId || 'All Players'}, Raid: ${raidId}`,
             eligibleCharacters
         );
 
@@ -174,6 +178,7 @@ async function fetchEligibleCharacters(playerId, groupId) {
         return { eligiblePlayers: [], eligibleCharacters: [] };
     }
 }
+
 // Get raids from cache
 async function fetchRaids() {
     if (cache.raids) return cache.raids; // In-memory cache
