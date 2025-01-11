@@ -619,28 +619,20 @@ function initializePlayerAndCharacterListeners() {
             const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
 
             if (!playerId) {
-                // Reset and disable the character dropdown
                 characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
                 characterSelect.disabled = true;
                 return;
             }
 
+            // Disable dropdown while waiting for data
+            characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
+            characterSelect.disabled = true;
+
             // Populate the character dropdown
-            characterSelect.disabled = true; // Temporarily disable while populating
             await populateCharacterDropdown(playerId, groupId, characterSelect);
 
-            // Enable the dropdown after populating
+            // Ensure dropdown is enabled after population
             characterSelect.disabled = false;
-        });
-    });
-
-    characterSelects.forEach(characterSelect => {
-        characterSelect.addEventListener('change', (event) => {
-            const groupElement = characterSelect.closest('.raid-group');
-            const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
-
-            // Logic to save or handle character selection can go here
-            console.log(`Character selected for group ${groupId}:`, event.target.value);
         });
     });
 }
@@ -653,6 +645,10 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
         characterSelect.disabled = true;
         return;
     }
+
+    // Add a loading indicator to inform the user
+    characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
+    characterSelect.disabled = true;
 
     try {
         const characters = await fetchCharactersForPlayer(playerId, groupId);
@@ -692,7 +688,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
             }
         }
 
-        characterSelect.disabled = false; // Enable after populating
+        characterSelect.disabled = false; // Enable dropdown after populating
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
