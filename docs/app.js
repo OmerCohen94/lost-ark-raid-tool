@@ -614,21 +614,20 @@ function initializePlayerAndCharacterListeners() {
 
     playerSelects.forEach(playerSelect => {
         playerSelect.addEventListener('change', async (event) => {
-            const playerId = event.target.value; // Get the selected player ID
+            const playerId = event.target.value;
             const groupElement = playerSelect.closest('.raid-group');
             const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
             const characterSelect = playerSelect.closest('td').nextElementSibling.querySelector('.character-select');
 
             if (!playerId) {
-                // Clear and disable the character dropdown if no player is selected
                 characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
                 characterSelect.disabled = true;
-                saveDropdownSelections(groupId); // Save the state
+                saveDropdownSelections(groupId);
                 return;
             }
 
-            // Fetch and populate characters
             await populateCharacterDropdown(playerId, groupId, characterSelect);
+            saveDropdownSelections(groupId);
         });
     });
 
@@ -636,8 +635,6 @@ function initializePlayerAndCharacterListeners() {
         characterSelect.addEventListener('change', (event) => {
             const groupElement = characterSelect.closest('.raid-group');
             const groupId = groupElement ? groupElement.getAttribute('data-group-id') : null;
-
-            // Save the updated dropdown selections
             saveDropdownSelections(groupId);
         });
     });
@@ -645,17 +642,10 @@ function initializePlayerAndCharacterListeners() {
 
 // Function to populate characters in a dropdown SUPABASE
 async function populateCharacterDropdown(playerId, groupId, characterSelect, savedCharacterId = null) {
-    // Disable the character dropdown by default
-    characterSelect.disabled = true;
-    characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-
-    if (!playerId) {
-        console.log('Waiting for player selection');
-        return;
-    }
-
-    if (!groupId) {
-        console.error('Group ID is required');
+    if (!playerId || !groupId) {
+        console.log('Waiting for player selection or group ID');
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+        characterSelect.disabled = true;
         return;
     }
 
@@ -665,51 +655,47 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
         if (characters.error) {
             console.error('Error fetching characters:', characters.error);
             characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+            characterSelect.disabled = true;
             return;
         }
 
-        // Populate the dropdown with eligible character options
-        const eligibleCharacters = characters.filter(character => character.is_eligible && !character.assigned_to_group);
-        eligibleCharacters.forEach(character => {
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+
+        characters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.id;
-            option.textContent = `${character.classes.name} (${character.item_level})`;
+
+            if (!character.is_eligible) {
+                option.disabled = true;
+                option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL)`;
+            } else if (character.assigned_to_group) {
+                option.disabled = true;
+                option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
+            } else {
+                option.textContent = `${character.classes.name} (${character.item_level})`;
+            }
+
             characterSelect.appendChild(option);
         });
 
-        // Enable dropdown after populating options
         characterSelect.disabled = false;
 
-        // Restore the saved character selection if provided
         if (savedCharacterId) {
             const savedCharacter = characters.find(char => char.id === savedCharacterId);
             if (savedCharacter && savedCharacter.is_eligible && !savedCharacter.assigned_to_group) {
                 characterSelect.value = savedCharacterId;
             } else {
                 console.warn(`Saved character ${savedCharacterId} is no longer valid or eligible.`);
-                characterSelect.selectedIndex = 0; // Set to default option
+                characterSelect.selectedIndex = 0;
             }
         } else {
-            characterSelect.selectedIndex = 0; // Set to default option if no saved character
-        }
-
-        // Add event listener to maintain selection on page refresh
-        characterSelect.addEventListener('change', () => {
-            localStorage.setItem('selectedCharacterId', characterSelect.value);
-        });
-
-        // Retrieve and set saved selection on page load
-        const storedCharacterId = localStorage.getItem('selectedCharacterId');
-        if (storedCharacterId) {
-            const storedCharacter = characters.find(char => char.id === storedCharacterId);
-            if (storedCharacter && storedCharacter.is_eligible && !storedCharacter.assigned_to_group) {
-                characterSelect.value = storedCharacterId;
-            }
+            characterSelect.selectedIndex = 0;
         }
 
     } catch (error) {
         console.error('Unexpected error populating character dropdown:', error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+        characterSelect.disabled = true;
     }
 }
 
@@ -800,6 +786,15 @@ async function restoreDropdownSelections(groupId) {
             characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
             characterSelect.disabled = true;
         }
+        window.addEventListener('load', () => {
+            const groupElements = document.querySelectorAll('.raid-group');
+            groupElements.forEach(groupElement => {
+                const groupId = groupElement.getAttribute('data-group-id');
+                restoreDropdownSelections(groupId);
+            });
+            initializePlayerAndCharacterListeners();
+        });
+        
     }
 }
 
