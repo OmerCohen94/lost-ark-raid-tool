@@ -859,6 +859,12 @@ const saveGroupMembers = async (group_id, members) => {
         return { error: 'Group ID and valid members data are required' };
     }
 
+    // Ensure group_id is set for each member
+    members = members.map(member => ({
+        ...member,
+        group_id: group_id, // Add group_id if not already present
+    }));
+
     try {
         const { error } = await supabase
             .from('group_members')
