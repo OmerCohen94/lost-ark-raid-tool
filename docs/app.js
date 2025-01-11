@@ -135,7 +135,7 @@ async function disableAssignedPlayers(groupId) {
     }
 }
 
-// Function to disable already assigned characters across groups
+// Function to disable already assigned characters across all groups immediately
 async function disableAssignedCharacters() {
     try {
         const { data: assignedCharacters, error } = await supabase
@@ -147,8 +147,9 @@ async function disableAssignedCharacters() {
             return;
         }
 
-        const assignedCharacterIds = new Set(assignedCharacters.map(c => c.character_id)); // Use Set to prevent duplicates
+        const assignedCharacterIds = new Set(assignedCharacters.map(c => c.character_id)); // Use Set to avoid duplicates
 
+        // Update all character dropdowns to reflect already assigned characters
         const characterOptions = document.querySelectorAll('.character-select option');
         characterOptions.forEach(option => {
             const charId = parseInt(option.value, 10);
@@ -157,6 +158,9 @@ async function disableAssignedCharacters() {
                 if (!option.textContent.includes('Already Assigned')) {
                     option.textContent += ' - Already Assigned';
                 }
+            } else {
+                option.disabled = false; // Re-enable if character is no longer assigned
+                option.textContent = option.textContent.replace(' - Already Assigned', '');
             }
         });
     } catch (error) {
@@ -1201,6 +1205,14 @@ async function loadExistingGroups(raidId = null) {
                 await populatePlayerDropdown(group.id, select);
             }
 
+            // Populate Character Dropdowns
+            const characterSelects = groupDiv.querySelectorAll('.character-select');
+            for (const select of characterSelects) {
+                select.innerHTML = '<option value="" disabled selected>Loading...</option>';
+                select.disabled = true;
+                await populateCharacterDropdown(null, group.id, select);
+            }
+
             // Update Player List
             await updatePlayerList(group.id, playerListContainer);
 
@@ -1209,6 +1221,7 @@ async function loadExistingGroups(raidId = null) {
 
             // Disable already assigned characters across groups
             await disableAssignedCharacters();
+
         }
     } catch (error) {
         console.error('Error loading groups:', error);
