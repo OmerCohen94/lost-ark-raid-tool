@@ -381,7 +381,7 @@ const fetchCharactersForPlayer = async (player_id, group_id) => {
             return { error: 'Error fetching characters' };
         }
 
-        // Fetch assignments for this raid
+        // Fetch assignments for all groups in this raid
         const { data: assignments, error: assignmentsError } = await supabase
             .from('group_members')
             .select(`
@@ -735,18 +735,27 @@ async function restoreDropdownSelections(groupId) {
                 characters.forEach(character => {
                     const option = document.createElement('option');
                     option.value = character.id;
-                    option.textContent = `${character.classes.name} (${character.item_level})`;
 
-                    if (character.assigned_to_group) {
-                        option.textContent += ` - Assigned to ${character.assigned_to_group}`;
+                    if (!character.is_eligible) {
                         option.disabled = true;
+                        option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL)`;
+                    } else if (character.assigned_to_group) {
+                        option.disabled = true;
+                        option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
+                    } else {
+                        option.textContent = `${character.classes.name} (${character.item_level})`;
                     }
 
                     characterSelect.appendChild(option);
                 });
 
-                // Restore the saved character selection
-                characterSelect.value = selection.character;
+                // Restore the saved character selection if still valid
+                if (characters.some(char => char.id === selection.character)) {
+                    characterSelect.value = selection.character;
+                } else {
+                    console.warn(`Previously selected character ${selection.character} is no longer valid.`);
+                }
+
                 characterSelect.disabled = false;
             } else {
                 console.error(`Error fetching characters for player ${selection.player}:`, characters.error);
