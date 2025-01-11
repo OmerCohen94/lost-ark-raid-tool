@@ -971,6 +971,22 @@ const saveGroupMembers = async (group_id, members) => {
         }
 
         console.log('Group members saved successfully');
+
+        // Dynamically update the player dropdowns to disable saved players
+        const groupElement = document.querySelector(`.raid-group[data-group-id='${group_id}']`);
+        if (groupElement) {
+            const playerSelects = groupElement.querySelectorAll('.player-select');
+            for (const playerSelect of playerSelects) {
+                const options = playerSelect.options;
+                for (const option of options) {
+                    if (members.some(member => member.player_id === parseInt(option.value, 10))) {
+                        option.disabled = true;
+                        option.textContent += ' - Already in group';
+                    }
+                }
+            }
+        }
+
         return { success: true };
     } catch (error) {
         console.error('Unexpected error saving group members:', error);
