@@ -728,7 +728,7 @@ async function restoreDropdownSelections(groupId) {
         if (selection.player) {
             playerSelect.value = selection.player;
 
-            // Trigger the character dropdown population based on the player selection
+            // Populate the character dropdown
             const characters = await fetchCharactersForPlayer(selection.player, groupId);
             if (!characters.error) {
                 characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
@@ -749,11 +749,12 @@ async function restoreDropdownSelections(groupId) {
                     characterSelect.appendChild(option);
                 });
 
-                // Restore the saved character selection if still valid
-                if (characters.some(char => char.id === selection.character)) {
+                // Restore the saved character selection
+                const savedCharacter = characters.find(char => char.id === selection.character);
+                if (savedCharacter) {
                     characterSelect.value = selection.character;
                 } else {
-                    console.warn(`Previously selected character ${selection.character} is no longer valid.`);
+                    console.warn(`Saved character ${selection.character} is no longer valid for player ${selection.player}.`);
                 }
 
                 characterSelect.disabled = false;
