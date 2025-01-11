@@ -699,104 +699,6 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect, sav
     }
 }
 
-// Function to save dropdown selections in local storage
-function saveDropdownSelections(groupId) {
-    const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
-    if (!groupElement) return;
-
-    const playerSelects = groupElement.querySelectorAll('.player-select');
-    const characterSelects = groupElement.querySelectorAll('.character-select');
-
-    const selections = Array.from(playerSelects).map((playerSelect, index) => ({
-        player: playerSelect.value || null,
-        character: characterSelects[index]?.value || null,
-    }));
-
-    localStorage.setItem(`group_${groupId}_selections`, JSON.stringify(selections));
-}
-
-// Function to restore dropdown selection from local storage
-async function restoreDropdownSelections(groupId) {
-    const savedSelections = localStorage.getItem(`group_${groupId}_selections`);
-    if (!savedSelections) return;
-
-    const selections = JSON.parse(savedSelections);
-    const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
-    if (!groupElement) {
-        console.error(`Group element for groupId ${groupId} not found.`);
-        return;
-    }
-
-    const playerSelects = groupElement.querySelectorAll('.player-select');
-    const characterSelects = groupElement.querySelectorAll('.character-select');
-
-    for (let index = 0; index < selections.length; index++) {
-        const selection = selections[index];
-        const playerSelect = playerSelects[index];
-        const characterSelect = characterSelects[index];
-
-        if (selection.player) {
-            playerSelect.value = selection.player;
-            playerSelect.disabled = false; // Ensure player dropdown is enabled
-
-            // Populate the character dropdown
-            const characters = await fetchCharactersForPlayer(selection.player, groupId);
-            if (!characters.error) {
-                characterSelect.innerHTML = '<option value="" disabled>Select Character</option>';
-                characters.forEach(character => {
-                    const option = document.createElement('option');
-                    option.value = character.id;
-
-                    if (!character.is_eligible) {
-                        option.disabled = true;
-                        option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL)`;
-                    } else if (character.assigned_to_group) {
-                        option.disabled = true;
-                        option.textContent = `${character.classes.name} (${character.item_level}) - Assigned to ${character.assigned_to_group}`;
-                    } else {
-                        option.textContent = `${character.classes.name} (${character.item_level})`;
-                    }
-
-                    characterSelect.appendChild(option);
-                });
-
-                // Restore the saved character selection
-                if (selection.character) {
-                    const savedCharacter = characters.find(char => char.id === selection.character);
-                    if (savedCharacter) {
-                        characterSelect.value = selection.character;
-                        characterSelect.disabled = false; // Enable dropdown after restoring selection
-                    } else {
-                        console.warn(`Saved character ${selection.character} is no longer valid for player ${selection.player}.`);
-                        characterSelect.disabled = true;
-                    }
-                } else {
-                    characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-                    characterSelect.disabled = true;
-                }
-            } else {
-                console.error(`Error fetching characters for player ${selection.player}:`, characters.error);
-                characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-                characterSelect.disabled = true;
-            }
-        } else {
-            // Reset dropdown if no player is selected
-            playerSelect.value = '';
-            playerSelect.disabled = false; // Ensure the dropdown is not disabled
-            characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-            characterSelect.disabled = true;
-        }
-        window.addEventListener('load', () => {
-            const groupElements = document.querySelectorAll('.raid-group');
-            groupElements.forEach(groupElement => {
-                const groupId = groupElement.getAttribute('data-group-id');
-                restoreDropdownSelections(groupId);
-            });
-            initializePlayerAndCharacterListeners();
-        });
-        
-    }
-}
 
 // Function to populate players in a dropdown SUPABASE
 async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId = null) {
@@ -975,8 +877,6 @@ async function resetGroup(groupId) {
 
         console.log('Group members cleared successfully');
 
-        // Clear saved dropdown selections
-        localStorage.removeItem(`group_${groupId}_selections`);
 
         // Reset dropdowns to default
         const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
