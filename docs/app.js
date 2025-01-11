@@ -206,7 +206,7 @@ function collectGroupMembers(groupElement) {
             return;
         }
 
-        const playerId = parseInt(playerSelect.value, 10);
+        const playerId = playerSelect.value;
         const characterId = parseInt(characterSelect.value, 10);
 
         if (!isNaN(playerId) && !isNaN(characterId)) {
@@ -365,15 +365,23 @@ const fetchAllPlayers = async () => {
 
 // Query to get characters of a specific player
 const fetchCharactersForPlayer = async (player_id, group_id = null) => {
-    if (!player_id) {
-        console.error('Player ID is required');
-        return { error: 'Player ID is required' };
+    if (typeof player_id !== 'string' || isNaN(Number(player_id))) {
+        console.error('Invalid player ID provided:', player_id);
+        return { error: 'Invalid player ID provided' };
     }
 
     try {
-        let raid_id = null, min_item_level = null;
+        const query = supabase
+            .from('characters')
+            .select(`
+                id,
+                name,
+                item_level,
+                classes ( name )
+            `)
+            .eq('player_id', parseInt(player_id, 10)); // Ensure player_id is an integer
 
-        // Fetch raid ID and minimum item level if group_id is provided
+        // Add additional filtering based on group_id if provided
         if (group_id) {
             const { data: group, error: groupError } = await supabase
                 .from('groups')
@@ -386,59 +394,16 @@ const fetchCharactersForPlayer = async (player_id, group_id = null) => {
                 return { error: 'Group not found' };
             }
 
-            ({ raid_id, min_item_level } = group);
+            const { raid_id, min_item_level } = group;
+
+            query.gte('item_level', min_item_level); // Filter by minimum item level if required
         }
 
-        // Fetch characters for the player
-        const { data: characters, error: charactersError } = await supabase
-            .from('characters')
-            .select(`
-                id,
-                name,
-                item_level,
-                classes ( name )
-            `)
-            .eq('player_id', player_id);
+        const { data: characters, error } = await query;
 
-        if (charactersError) {
-            console.error('Error fetching characters:', charactersError);
+        if (error) {
+            console.error('Error fetching characters:', error);
             return { error: 'Error fetching characters' };
-        }
-
-        // Sort characters by class name manually
-        characters.sort((a, b) => {
-            const nameA = a.classes?.name || '';
-            const nameB = b.classes?.name || '';
-            return nameA.localeCompare(nameB);
-        });
-
-        // Add eligibility flags and assignment logic if group_id is provided
-        if (group_id) {
-            // Fetch assignments
-            const { data: assignments, error: assignmentsError } = await supabase
-                .from('group_members')
-                .select(`
-                    character_id,
-                    groups!group_members_group_id_fkey ( group_name )
-                `)
-                .eq('groups.raid_id', raid_id)
-                .neq('group_id', group_id);
-
-            if (assignmentsError) {
-                console.error('Error fetching assignments:', assignmentsError);
-                return { error: 'Error fetching assignments' };
-            }
-
-            const assignmentsMap = new Map();
-            assignments.forEach(row => {
-                assignmentsMap.set(row.character_id, row.groups.group_name);
-            });
-
-            // Annotate characters with eligibility and assignment status
-            characters.forEach(character => {
-                character.is_eligible = min_item_level ? character.item_level >= min_item_level : true;
-                character.assigned_to_group = assignmentsMap.get(character.id) || null;
-            });
         }
 
         return characters;
