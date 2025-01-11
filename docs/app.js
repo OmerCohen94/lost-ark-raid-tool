@@ -116,7 +116,7 @@ function clearGroupsCache(raidId = null) {
     }
 }
 
-// Function to get eligible characters
+// Updated Function to Get Eligible Characters and Players
 async function fetchEligibleCharacters(playerId, groupId) {
     try {
         // Fetch the group to determine raid_id
@@ -128,31 +128,52 @@ async function fetchEligibleCharacters(playerId, groupId) {
 
         if (groupError || !group) {
             console.error('Error fetching group details for eligibility:', groupError || 'Group not found');
-            return [];
+            return { eligiblePlayers: [], eligibleCharacters: [] };
         }
 
         const raidId = group.raid_id;
 
         // Query eligible_characters view using the correct raid_id
-        const { data, error } = await supabase
+        const { data: eligibleCharacters, error: charactersError } = await supabase
             .from('eligible_characters')
             .select('*')
             .eq('player_id', playerId)
-            .eq('raid_id', raidId); // Use raid_id from the group
+            .eq('raid_id', raidId);
 
-        if (error) {
-            console.error('Error fetching eligible characters:', error);
-            return [];
+        if (charactersError) {
+            console.error('Error fetching eligible characters:', charactersError);
+            return { eligiblePlayers: [], eligibleCharacters: [] };
         }
 
-        console.log(`Fetched eligible characters for Player: ${playerId}, Raid: ${raidId}`, data);
-        return data;
+        // Fetch all players and check their eligibility
+        const { data: players, error: playersError } = await supabase
+            .from('players')
+            .select('id, username');
+
+        if (playersError) {
+            console.error('Error fetching players:', playersError);
+            return { eligiblePlayers: [], eligibleCharacters };
+        }
+
+        // Disable players who are already selected in the group
+        const eligiblePlayers = players.map(player => ({
+            ...player,
+            isDisabled: eligibleCharacters.some(
+                char => char.player_id === player.id && char.is_assigned
+            )
+        }));
+
+        console.log(
+            `Fetched eligible characters for Player: ${playerId}, Raid: ${raidId}`,
+            eligibleCharacters
+        );
+
+        return { eligiblePlayers, eligibleCharacters };
     } catch (error) {
         console.error('Unexpected error fetching eligible characters:', error);
-        return [];
+        return { eligiblePlayers: [], eligibleCharacters: [] };
     }
 }
-
 // Get raids from cache
 async function fetchRaids() {
     if (cache.raids) return cache.raids; // In-memory cache
@@ -612,9 +633,9 @@ const fetchAllCharacters = async () => {
 // Function to populate characters in a dropdown SUPABASE
 async function populateCharacterDropdown(playerId, groupId, characterSelect) {
     try {
-        const characters = await fetchEligibleCharacters(playerId, groupId);
+        const { eligibleCharacters } = await fetchEligibleCharacters(playerId, groupId);
 
-        if (!characters || characters.length === 0) {
+        if (!eligibleCharacters || eligibleCharacters.length === 0) {
             console.warn(`No eligible characters found for Player: ${playerId}, Group: ${groupId}`);
             characterSelect.innerHTML = '<option value="" disabled>No eligible characters</option>';
             characterSelect.disabled = true;
@@ -622,7 +643,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
         }
 
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        characters.forEach(character => {
+        eligibleCharacters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.character_id;
 
@@ -648,22 +669,38 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
 }
 
 // Function to populate players in a dropdown SUPABASE
-async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId = null) {
-    if (cache.players.has(groupId)) {
-        populatePlayerDropdownFromCache(cache.players.get(groupId), playerSelect, preselectedPlayerId);
-        return;
-    }
+async function populatePlayerDropdown(groupId, playerSelect) {
+    try {
+        const { eligiblePlayers } = await fetchEligibleCharacters(null, groupId);
 
-    const players = await fetchPlayersForGroup(groupId);
-    if (!players.error) {
-        cache.players.set(groupId, players);
-        populatePlayerDropdownFromCache(players, playerSelect, preselectedPlayerId);
-    } else {
-        console.error('Error fetching players:', players.error);
+        if (!eligiblePlayers || eligiblePlayers.length === 0) {
+            console.warn(`No eligible players found for Group: ${groupId}`);
+            playerSelect.innerHTML = '<option value="" disabled>No eligible players</option>';
+            playerSelect.disabled = true;
+            return;
+        }
+
+        playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
+        eligiblePlayers.forEach(player => {
+            const option = document.createElement('option');
+            option.value = player.id;
+            option.textContent = player.username;
+
+            if (player.isDisabled) {
+                option.disabled = true;
+                option.textContent += ' - Already Selected';
+            }
+
+            playerSelect.appendChild(option);
+        });
+
+        playerSelect.disabled = false;
+    } catch (error) {
+        console.error('Error populating player dropdown:', error);
         playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
+        playerSelect.disabled = true;
     }
 }
-
 
 // And cache player
 function populatePlayerDropdownFromCache(players, playerSelect, preselectedPlayerId) {
