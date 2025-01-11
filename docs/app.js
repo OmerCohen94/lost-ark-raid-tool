@@ -841,7 +841,11 @@ async function populateRaidDropdown() {
 // Function to create a raid group SUPABASE
 let isCreatingGroup = false; // Prevent duplicate submissions
 async function createRaidGroup(raidId, minItemLevel) {
-    if (isCreatingGroup) return { error: 'A group creation is already in progress' };
+    if (isCreatingGroup) {
+        console.warn('A group creation is already in progress. Ignoring this request.');
+        return { error: 'A group creation is already in progress' }; // Log a warning, no need for UI alert
+    }
+
     isCreatingGroup = true;
 
     if (!raidId || minItemLevel === null || minItemLevel === undefined) {
@@ -851,7 +855,6 @@ async function createRaidGroup(raidId, minItemLevel) {
     }
 
     try {
-        // Fetch the number of existing groups for this raid
         const { count: existingGroupsCount, error: countError } = await supabase
             .from('groups')
             .select('*', { count: 'exact' })
@@ -863,10 +866,8 @@ async function createRaidGroup(raidId, minItemLevel) {
             return { error: 'Error fetching existing groups count.' };
         }
 
-        // Generate the group name
         const groupName = `Group ${existingGroupsCount + 1}`;
 
-        // Insert the new group
         const { data: newGroup, error } = await supabase
             .from('groups')
             .insert([{ raid_id: raidId, min_item_level: minItemLevel, group_name: groupName }])
