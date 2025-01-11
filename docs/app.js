@@ -611,7 +611,7 @@ const getEligiblePlayers = async (min_item_level, raid_id) => {
     }
 };
 
-// Function to restore dropdown selections from localStorage SUPABASE
+////////////////////////////////////////////////////////////////////////////////////////////// Function to restore dropdown selections from localStorage SUPABASE
 async function restoreDropdownSelections(groupId) {
     const savedSelections = localStorage.getItem(`group_${groupId}_selections`);
     if (!savedSelections) return;
@@ -731,8 +731,8 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             const option = document.createElement('option');
             option.value = character.id;
 
-            // Apply the minimum item level check
-            if (character.item_level < character.min_item_level) {
+            // Check character eligibility based on minimum item level
+            if (!character.is_eligible) {
                 option.disabled = true;
                 option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${character.min_item_level})`;
             } else if (character.assigned_to_group) {
@@ -819,50 +819,8 @@ async function populateRaidDropdown() {
     }
 }
 
-// Function to update character options based on selected player SUPABASE
-async function updateCharacterOptions(playerSelect, characterSelect, groupId) {
-    const playerId = playerSelect.value;
-
-    if (!playerId) {
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        characterSelect.disabled = true;
-        return;
-    }
-
-    try {
-        const characters = await fetchCharactersForPlayer(playerId, groupId);
-
-        if (!characters.error) {
-            characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-            characters.forEach(character => {
-                const option = document.createElement('option');
-                option.value = character.id;
-                option.textContent = `${character.classes.name} (${character.item_level})`;
-
-                if (character.assigned_to_group) {
-                    option.textContent += ` - Assigned to ${character.assigned_to_group}`;
-                    option.disabled = true;
-                } else if (!character.meets_min_item_level) {
-                    option.textContent += ` - Below Min IL`;
-                    option.disabled = true;
-                }
-
-                characterSelect.appendChild(option);
-            });
-            characterSelect.disabled = false;
-        } else {
-            console.error('Error fetching characters:', characters.error);
-            characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-        }
-    } catch (error) {
-        console.error('Unexpected error updating character options:', error);
-        characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-    }
-}
-
 // Function to create a raid group SUPABASE
 let isCreatingGroup = false; // Prevent duplicate submissions
-
 async function createRaidGroup(raid_id, min_item_level) {
     if (isCreatingGroup) return { error: 'A group creation is already in progress' };
     isCreatingGroup = true;
