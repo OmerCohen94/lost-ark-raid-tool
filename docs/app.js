@@ -101,12 +101,13 @@ function clearCharactersCache(playerId, groupId = null) {
     }
 }
 
-// Function to disable already assigned players across groups
-async function disableAssignedPlayers() {
+// Function to disable already assigned players in relevant groups
+async function disableAssignedPlayers(groupId) {
     try {
         const { data: assignedPlayers, error } = await supabase
             .from('group_members')
-            .select('player_id');
+            .select('player_id')
+            .eq('group_id', groupId); // Fetch only for the specific group
 
         if (error) {
             console.error('Error fetching assigned players:', error);
@@ -115,7 +116,11 @@ async function disableAssignedPlayers() {
 
         const assignedPlayerIds = new Set(assignedPlayers.map(p => p.player_id)); // Use Set to avoid duplicates
 
-        const playerOptions = document.querySelectorAll('.player-select option');
+        // Disable assigned players only in the relevant group's dropdowns
+        const groupElement = document.querySelector(`.raid-group[data-group-id="${groupId}"]`);
+        if (!groupElement) return;
+
+        const playerOptions = groupElement.querySelectorAll('.player-select option');
         playerOptions.forEach(option => {
             const playerId = parseInt(option.value, 10);
             if (assignedPlayerIds.has(playerId)) {
@@ -1177,7 +1182,7 @@ async function loadExistingGroups(raidId = null) {
             groupDiv.appendChild(table);
             groupsContainer.appendChild(groupDiv);
 
-            // Populate Player Dropdowns for Both Parties
+            // Populate Player Dropdowns
             const playerSelects = groupDiv.querySelectorAll('.player-select');
             for (const select of playerSelects) {
                 await populatePlayerDropdown(group.id, select);
@@ -1186,8 +1191,8 @@ async function loadExistingGroups(raidId = null) {
             // Update Player List
             await updatePlayerList(group.id, playerListContainer);
 
-            // Disable already assigned players across groups
-            await disableAssignedPlayers();
+            // Disable already assigned players for this group
+            await disableAssignedPlayers(group.id);
 
             // Disable already assigned characters across groups
             await disableAssignedCharacters();
