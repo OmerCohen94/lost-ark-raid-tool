@@ -76,11 +76,11 @@ async function fetchRaids() {
 const cache = {
     players: new Map(),
     characters: new Map(),
-    raids: null, 
-    groups: new Map(), 
+    raids: null,
+    groups: new Map(),
 };
 
-// Clear players cache
+// Clear Players Cache
 function clearPlayersCache(groupId = null) {
     if (groupId) {
         cache.players.delete(groupId);
@@ -88,14 +88,12 @@ function clearPlayersCache(groupId = null) {
     } else {
         cache.players.clear();
         for (const key in localStorage) {
-            if (key.startsWith('players-')) {
-                localStorage.removeItem(key);
-            }
+            if (key.startsWith('players-')) localStorage.removeItem(key);
         }
     }
 }
 
-// Clear characters cache
+// Clear Characters Cache
 function clearCharactersCache(playerId, groupId = null) {
     if (groupId) {
         const cacheKey = `${playerId}-${groupId}`;
@@ -104,10 +102,23 @@ function clearCharactersCache(playerId, groupId = null) {
     } else {
         cache.characters.clear();
         for (const key in localStorage) {
-            if (key.startsWith('characters-')) {
-                localStorage.removeItem(key);
-            }
+            if (key.startsWith('characters-')) localStorage.removeItem(key);
         }
+    }
+}
+
+// Clear Raids Cache
+function clearRaidsCache() {
+    cache.raids = null;
+    localStorage.removeItem('raids');
+}
+
+// Clear Groups Cache
+function clearGroupsCache(raidId = null) {
+    if (raidId) {
+        cache.groups.delete(raidId);
+    } else {
+        cache.groups.clear();
     }
 }
 
@@ -139,17 +150,19 @@ async function fetchEligibleCharacters(playerId, groupId) {
 
 // Get raids from cache
 async function fetchRaids() {
-    // Check in-memory cache
-    if (cache.raids) {
-        console.log('Using cached raids');
+    if (cache.raids) return cache.raids; // In-memory cache
+
+    const storedRaids = localStorage.getItem('raids');
+    if (storedRaids) {
+        cache.raids = JSON.parse(storedRaids);
         return cache.raids;
     }
 
     try {
-        const raids = await fetchFromStorage('raids.json'); // Load from Supabase Storage
+        const raids = await fetchFromStorage('raids.json');
         if (raids) {
-            cache.raids = raids; // Store in memory
-            localStorage.setItem('raids', JSON.stringify(raids)); // Persist in localStorage
+            cache.raids = raids;
+            localStorage.setItem('raids', JSON.stringify(raids));
         }
         return raids || [];
     } catch (error) {
@@ -407,7 +420,13 @@ async function loadRaidsDropdown(raidSelect) {
 }
 
 // Helper function to populate the dropdown
-function populateRaidDropdown(raidSelect, raids) {
+async function populateRaidDropdown(raidSelect) {
+    const raids = await fetchRaids();
+    if (!raids || raids.length === 0) {
+        raidSelect.innerHTML = '<option value="" disabled>Error loading raids</option>';
+        return;
+    }
+
     raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>';
     raids.forEach(raid => {
         const option = document.createElement('option');
@@ -418,13 +437,10 @@ function populateRaidDropdown(raidSelect, raids) {
     });
 }
 
+
 // da fuck 2
 async function fetchGroupsForRaid(raidId) {
-    // Check cache first
-    if (cache.groups && cache.groups.has(raidId)) {
-        console.log(`Using cached groups for Raid ID: ${raidId}`);
-        return cache.groups.get(raidId);
-    }
+    if (cache.groups.has(raidId)) return cache.groups.get(raidId);
 
     try {
         const { data: groups, error } = await supabase
@@ -437,7 +453,7 @@ async function fetchGroupsForRaid(raidId) {
             return [];
         }
 
-        cache.groups.set(raidId, groups); // Cache the groups in memory
+        cache.groups.set(raidId, groups);
         return groups;
     } catch (error) {
         console.error('Unexpected error fetching groups:', error);
@@ -812,44 +828,21 @@ function populateCharacterDropdownFromCache(characters, characterSelect, savedCh
 
 // Function to populate players in a dropdown SUPABASE
 async function populatePlayerDropdown(groupId, playerSelect, preselectedPlayerId = null) {
-    try {
-        // Check cache first
-        if (cache.players.has(groupId)) {
-            const players = cache.players.get(groupId);
-            populatePlayerDropdownFromCache(players, playerSelect, preselectedPlayerId);
-            return;
-        }
+    if (cache.players.has(groupId)) {
+        populatePlayerDropdownFromCache(cache.players.get(groupId), playerSelect, preselectedPlayerId);
+        return;
+    }
 
-        // Fetch players from the database
-        const players = await fetchPlayersForGroup(groupId);
-
-        if (!players.error) {
-            cache.players.set(groupId, players); // Cache the fetched data
-            populatePlayerDropdownFromCache(players, playerSelect, preselectedPlayerId);
-        } else {
-            console.error('Error fetching players:', players.error);
-            playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
-        }
-    } catch (error) {
-        console.error('Unexpected error populating player dropdown:', error);
+    const players = await fetchPlayersForGroup(groupId);
+    if (!players.error) {
+        cache.players.set(groupId, players);
+        populatePlayerDropdownFromCache(players, playerSelect, preselectedPlayerId);
+    } else {
+        console.error('Error fetching players:', players.error);
         playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
     }
 }
 
-// Clear raid cache
-function clearRaidsCache() {
-    cache.raids = null;
-    localStorage.removeItem('raids');
-}
-
-// Clear groups cache 
-function clearGroupsCache(raidId = null) {
-    if (raidId) {
-        cache.groups.delete(raidId);
-    } else {
-        cache.groups.clear();
-    }
-}
 
 // And cache player
 function populatePlayerDropdownFromCache(players, playerSelect, preselectedPlayerId) {
@@ -874,38 +867,6 @@ function populatePlayerDropdownFromCache(players, playerSelect, preselectedPlaye
     }
 
     playerSelect.disabled = false;
-}
-
-// Function to populate raids in the dropdown SUPABASE
-async function populateRaidDropdown() {
-    const raidSelect = document.getElementById('raid-select');
-    if (!raidSelect) {
-        console.error('Raid dropdown not found');
-        return;
-    }
-
-    try {
-        const { data: raids, error } = await supabase
-            .from('raids')
-            .select('id, name, min_item_level');
-
-        if (error) {
-            console.error('Error fetching raids:', error);
-            return;
-        }
-
-        raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>'; // Reset options
-
-        raids.forEach(raid => {
-            const option = document.createElement('option');
-            option.value = raid.id; // Set the raid ID
-            option.setAttribute('data-min-ilvl', raid.min_item_level); // Store minimum item level
-            option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
-            raidSelect.appendChild(option);
-        });
-    } catch (error) {
-        console.error('Unexpected error populating raid dropdown:', error);
-    }
 }
 
 // Function to create a raid group SUPABASE
@@ -1030,18 +991,17 @@ async function resetGroup(groupId) {
 }
 
 // Function to save group members SUPABASE
-const saveGroupMembers = async (group_id, members) => {
-    if (!group_id || !members || members.length === 0) {
+const saveGroupMembers = async (groupId, members) => {
+    if (!groupId || !members || members.length === 0) {
         console.error('Group ID and valid members data are required');
         return { error: 'Group ID and valid members data are required' };
     }
 
     try {
-        // Fetch the raid_id for the group
         const { data: group, error: groupError } = await supabase
             .from('groups')
             .select('raid_id')
-            .eq('id', group_id)
+            .eq('id', groupId)
             .single();
 
         if (groupError || !group) {
@@ -1049,33 +1009,14 @@ const saveGroupMembers = async (group_id, members) => {
             return { error: 'Group not found' };
         }
 
-        const { raid_id } = group;
+        const raidId = group.raid_id;
 
-        // Validate that no character is already assigned to another group in the same raid
-        for (const member of members) {
-            const { data: conflict, error: conflictError } = await supabase
-                .from('group_members')
-                .select('group_id, groups(group_name)')
-                .eq('character_id', member.character_id)
-                .eq('groups.raid_id', raid_id)
-                .neq('group_id', group_id)
-                .single();
-
-            if (conflictError === null && conflict) {
-                return { error: `Character is already assigned to ${conflict.groups.group_name} in this raid.` };
-            }
-        }
-
-        // Ensure each member includes group_id explicitly
         const formattedMembers = members.map(member => ({
-            group_id, // Ensure group_id is added explicitly
-            player_id: parseInt(member.player_id, 10), // Ensure player_id is an integer
-            character_id: parseInt(member.character_id, 10) // Ensure character_id is an integer
+            group_id: groupId,
+            player_id: parseInt(member.player_id, 10),
+            character_id: parseInt(member.character_id, 10),
         }));
 
-        console.log('Saving group members:', formattedMembers);
-
-        // Save members to the database
         const { error: upsertError } = await supabase
             .from('group_members')
             .upsert(formattedMembers, { onConflict: ['group_id', 'player_id', 'character_id'] });
@@ -1086,28 +1027,13 @@ const saveGroupMembers = async (group_id, members) => {
         }
 
         console.log('Group members saved successfully');
-
-        // Dynamically update the player dropdowns to disable saved players
-        const groupElement = document.querySelector(`.raid-group[data-group-id='${group_id}']`);
-        if (groupElement) {
-            const playerSelects = groupElement.querySelectorAll('.player-select');
-            for (const playerSelect of playerSelects) {
-                const options = playerSelect.options;
-                for (const option of options) {
-                    if (members.some(member => member.player_id === parseInt(option.value, 10))) {
-                        option.disabled = true;
-                        option.textContent += ' - Already in group';
-                    }
-                }
-            }
-        }
-
         return { success: true };
     } catch (error) {
         console.error('Unexpected error saving group members:', error);
         return { error: 'Unexpected server error' };
     }
 };
+
 
 // Function to load existing groups SUPABASE
 async function loadExistingGroups(raid_id = null) {
