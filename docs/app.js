@@ -851,13 +851,16 @@ async function createRaidGroup(raid_id, min_item_level) {
             return { error: 'Error creating group' };
         }
 
-        // Persist new group selections
+        const groupId = newGroup.id; // Ensure groupId is assigned here
+
+        console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
+
+        // Refresh groups and persist new group selections
+        await loadExistingGroups(raid_id);
         restoreDropdownSelections(groupId);
         initializePlayerAndCharacterListeners(groupId);
 
-        console.log(`Group "${groupName}" created successfully for raid "${raidName}"`);
-        await loadExistingGroups(raid_id); // Refresh groups
-        return { group_name: groupName };
+        return { group_name: groupName, group_id: groupId };
     } catch (error) {
         console.error('Unexpected error creating group:', error);
         return { error: 'Unexpected error creating group' };
