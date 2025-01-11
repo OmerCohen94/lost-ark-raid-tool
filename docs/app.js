@@ -749,6 +749,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             const option = document.createElement('option');
             option.value = character.id;
 
+            // Apply the minimum item level check
             if (character.item_level < character.min_item_level) {
                 option.disabled = true;
                 option.textContent = `${character.classes.name} (${character.item_level}) - Ineligible (Below Min IL: ${character.min_item_level})`;
