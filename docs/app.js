@@ -984,15 +984,34 @@ async function saveGroupMembers(groupId, members) {
     }
 
     try {
-        const result = await updateGroupMembers(groupId, members);
+        // Clear existing members for the group
+        const { error: clearError } = await supabase
+            .from('group_members')
+            .delete()
+            .eq('group_id', groupId);
 
-        if (result.error) {
-            console.error('Error saving group members:', result.error);
-            return { error: result.error };
+        if (clearError) {
+            console.error('Error clearing existing group members:', clearError);
+            return { error: 'Error clearing existing group members' };
         }
 
-        console.log('Group members saved successfully:', result.message);
-        return { message: 'Group members saved successfully' };
+        // Insert new members
+        const { error: insertError } = await supabase
+            .from('group_members')
+            .insert(
+                members.map(member => ({
+                    group_id: groupId,
+                    player_id: member.player_id,
+                    character_id: member.character_id,
+                }))
+            );
+
+        if (insertError) {
+            console.error('Error saving group members:', insertError);
+            return { error: 'Error saving group members' };
+        }
+
+        console.log('Group members saved successfully');
     } catch (error) {
         console.error('Unexpected error saving group members:', error);
         return { error: 'Unexpected server error' };
