@@ -750,17 +750,25 @@ async function restoreDropdownSelections(groupId) {
                 });
 
                 // Restore the saved character selection
-                const savedCharacter = characters.find(char => char.id === selection.character);
-                if (savedCharacter) {
-                    characterSelect.value = selection.character;
+                if (selection.character) {
+                    const savedCharacter = characters.find(char => char.id === selection.character);
+                    if (savedCharacter) {
+                        characterSelect.value = selection.character;
+                        characterSelect.disabled = false; // Enable dropdown
+                    } else {
+                        console.warn(`Saved character ${selection.character} is no longer valid for player ${selection.player}.`);
+                        characterSelect.disabled = true;
+                    }
                 } else {
-                    console.warn(`Saved character ${selection.character} is no longer valid for player ${selection.player}.`);
+                    characterSelect.disabled = true;
                 }
-
-                characterSelect.disabled = false;
             } else {
                 console.error(`Error fetching characters for player ${selection.player}:`, characters.error);
             }
+        } else {
+            // Reset dropdown if no player is selected
+            characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+            characterSelect.disabled = true;
         }
     }
 }
