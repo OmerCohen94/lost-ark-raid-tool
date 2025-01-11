@@ -713,27 +713,53 @@ function saveDropdownSelections(groupId) {
 }
 
 // Function to restore dropdown selection from local storage
-function restoreDropdownSelections(groupId) {
+async function restoreDropdownSelections(groupId) {
     const savedSelections = localStorage.getItem(`group_${groupId}_selections`);
     if (!savedSelections) return;
 
     const selections = JSON.parse(savedSelections);
     const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
-    if (!groupElement) return;
+    if (!groupElement) {
+        console.error(`Group element for groupId ${groupId} not found.`);
+        return;
+    }
 
     const playerSelects = groupElement.querySelectorAll('.player-select');
     const characterSelects = groupElement.querySelectorAll('.character-select');
 
-    selections.forEach((selection, index) => {
-        if (selection.player) {
-            playerSelects[index].value = selection.player;
-            playerSelects[index].dispatchEvent(new Event('change')); // Trigger change event
-        }
+    for (let index = 0; index < selections.length; index++) {
+        const selection = selections[index];
+        const playerSelect = playerSelects[index];
+        const characterSelect = characterSelects[index];
 
-        if (selection.character) {
-            characterSelects[index].value = selection.character;
+        if (selection.player) {
+            playerSelect.value = selection.player;
+
+            // Trigger the character dropdown population based on the player selection
+            const characters = await fetchCharactersForPlayer(selection.player, groupId);
+            if (!characters.error) {
+                characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+                characters.forEach(character => {
+                    const option = document.createElement('option');
+                    option.value = character.id;
+                    option.textContent = `${character.classes.name} (${character.item_level})`;
+
+                    if (character.assigned_to_group) {
+                        option.textContent += ` - Assigned to ${character.assigned_to_group}`;
+                        option.disabled = true;
+                    }
+
+                    characterSelect.appendChild(option);
+                });
+
+                // Restore the saved character selection
+                characterSelect.value = selection.character;
+                characterSelect.disabled = false;
+            } else {
+                console.error(`Error fetching characters for player ${selection.player}:`, characters.error);
+            }
         }
-    });
+    }
 }
 
 // Function to populate players in a dropdown SUPABASE
