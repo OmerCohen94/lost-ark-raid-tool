@@ -133,8 +133,8 @@ async function fetchEligibleCharacters(playerId, groupId) {
         const { data, error } = await supabase
             .from('eligible_characters')
             .select('*')
-            .eq('player_id', playerId) // Match the player
-            .eq('group_id', groupId); // Match the group
+            .eq('player_id', playerId)
+            .eq('group_id', groupId);
 
         if (error) {
             console.error('Error fetching eligible characters:', error);
@@ -151,7 +151,6 @@ async function fetchEligibleCharacters(playerId, groupId) {
         return [];
     }
 }
-
 
 // Get raids from cache
 async function fetchRaids() {
@@ -707,7 +706,6 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             return;
         }
 
-        // Populate the dropdown
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
         characters.forEach(character => {
             const option = document.createElement('option');
