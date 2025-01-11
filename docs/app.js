@@ -1392,180 +1392,181 @@ async function deleteCharacterFromPlayer(characterSelect) {
 }
 
 // Initialize on DOM content loaded
-document.addEventListener('DOMContentLoaded', async () => {
-    // Initialize caches from localStorage on page load
-    const initializeCache = () => {
-        for (const key in localStorage) {
-            if (key.startsWith('players-')) {
-                const groupId = key.split('-')[1];
-                cache.players.set(groupId, JSON.parse(localStorage.getItem(key)));
-            }
-            if (key.startsWith('characters-')) {
-                const cacheKey = key.split('-').slice(1).join('-');
-                cache.characters.set(cacheKey, JSON.parse(localStorage.getItem(key)));
-            }
-        }
-        const storedRaids = JSON.parse(localStorage.getItem('raids'));
-        if (storedRaids) cache.raids = storedRaids;
-
-        console.log('Caches initialized:', cache);
-    };
-
-    initializeCache();
-
-    // Identify the page by checking for specific elements
-    const raidSelect = document.getElementById('raid-select'); // For the Raid Organizer page
-    const playerForm = document.getElementById('player-form'); // For the Add Player / Character page
-
-    if (raidSelect) {
-        // Raid Organizer Page
-        await loadRaidsDropdown(raidSelect); // Load raids from Supabase Storage
-        loadExistingGroups(); // Load groups initially
-
-        // Refresh groups based on raid selection
-        raidSelect.addEventListener('change', async () => {
-            const selectedRaidId = raidSelect.value || null;
-            await loadExistingGroups(selectedRaidId);
-        });
-
-        // Create a new raid group
-        document.getElementById('create-raid-btn')?.addEventListener('click', async (event) => {
-            event.preventDefault();
-
-            const createButton = event.target; // Reference the clicked button
-            const selectedOption = raidSelect.options[raidSelect.selectedIndex];
-
-            // Disable the button to prevent duplicate clicks
-            createButton.disabled = true;
-
-            if (!selectedOption || !selectedOption.value) {
-                console.error('Please select a raid to create a group.');
-                alert('Please select a raid to create a group.');
-                createButton.disabled = false; // Re-enable the button
-                return;
-            }
-
-            const raidId = selectedOption.value;
-            const minItemLevel = selectedOption.getAttribute('data-min-ilvl');
-
-            if (!raidId || !minItemLevel) {
-                console.error('Invalid raid selection or missing minimum item level.');
-                alert('Invalid raid selection or missing minimum item level.');
-                createButton.disabled = false; // Re-enable the button
-                return;
-            }
-
-            try {
-                createButton.textContent = 'Creating...';
-
-                const result = await createRaidGroup(raidId, parseInt(minItemLevel, 10));
-
-                if (result.error) {
-                    console.error(`Error creating group: ${result.error}`);
-                } else {
-                    await loadExistingGroups();
+document.addEventListener('DOMContentLoaded', () => {
+    // Async wrapper for initialization logic
+    (async function initialize() {
+        // Initialize caches from localStorage on page load
+        const initializeCache = () => {
+            for (const key in localStorage) {
+                if (key.startsWith('players-')) {
+                    const groupId = key.split('-')[1];
+                    cache.players.set(groupId, JSON.parse(localStorage.getItem(key)));
                 }
-            } catch (error) {
-                console.error('Unexpected error creating group:', error);
-            } finally {
-                // Re-enable the button and reset its text
-                createButton.disabled = false;
-                createButton.textContent = 'Create Raid Group';
+                if (key.startsWith('characters-')) {
+                    const cacheKey = key.split('-').slice(1).join('-');
+                    cache.characters.set(cacheKey, JSON.parse(localStorage.getItem(key)));
+                }
             }
-        });
+            const storedRaids = JSON.parse(localStorage.getItem('raids'));
+            if (storedRaids) cache.raids = storedRaids;
 
-        // Realtime listener for groups
-        supabase
-            .from('groups')
-            .on('INSERT', payload => {
-                console.log('New group added:', payload.new);
-                loadExistingGroups(payload.new.raid_id);
-            })
-            .on('UPDATE', payload => {
-                console.log('Group updated:', payload.new);
-                loadExistingGroups(payload.new.raid_id);
-            })
-            .on('DELETE', payload => {
-                console.log('Group deleted:', payload.old);
-                loadExistingGroups();
-            })
-            .subscribe();
-    }
+            console.log('Caches initialized:', cache);
+        };
 
-    if (playerForm) {
-        // Add Player / Character Page
-        const playerSelect = document.getElementById('player-select');
-        const classSelect = document.getElementById('class-select');
-        const characterSelect = document.getElementById('character-select');
+        initializeCache();
 
-        await loadClassesDropdown(classSelect); // Load classes from Supabase Storage
-        loadPlayersForAddPage(playerSelect); // Populate players from cache or fetch
+        // Identify the page by checking for specific elements
+        const raidSelect = document.getElementById('raid-select'); // For the Raid Organizer page
+        const playerForm = document.getElementById('player-form'); // For the Add Player / Character page
 
-        // Load characters for selected player
-        playerSelect?.addEventListener('change', async (event) => {
-            await loadCharactersForPlayer(event.target.value, characterSelect);
-        });
+        if (raidSelect) {
+            // Raid Organizer Page
+            console.log('Initializing raid dropdown...');
+            await loadRaidsDropdown(raidSelect); // Load raids from Supabase Storage
+            await loadExistingGroups(); // Load groups initially
 
-        // Add a new player
-        document.getElementById('add-player-btn')?.addEventListener('click', async () => {
-            const usernameInput = document.getElementById('username-input');
-            if (usernameInput.value.trim() === '') {
-                alert('Please enter a valid username.');
-                return;
-            }
-            await addNewPlayer(usernameInput);
-            clearPlayersCache(); // Clear player cache
-            await loadPlayersForAddPage(playerSelect); // Refresh player dropdown
-        });
+            // Refresh groups based on raid selection
+            raidSelect.addEventListener('change', async () => {
+                const selectedRaidId = raidSelect.value || null;
+                console.log('Raid changed. Loading groups for raid:', selectedRaidId);
+                await loadExistingGroups(selectedRaidId);
+            });
 
-        // Add a new character
-        document.getElementById('add-character-btn')?.addEventListener('click', async () => {
-            const characterNameInput = document.getElementById('character-name-input');
-            const itemLevelInput = document.getElementById('item-level-input');
-            if (!playerSelect.value || !characterNameInput.value || !itemLevelInput.value) {
-                alert('Please fill in all fields to add a character.');
-                return;
-            }
-            await addNewCharacter(playerSelect, characterNameInput, itemLevelInput, classSelect);
-            clearCharactersCache(playerSelect.value); // Clear character cache for this player
-            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
-        });
+            // Create a new raid group
+            document.getElementById('create-raid-btn')?.addEventListener('click', async (event) => {
+                event.preventDefault();
+                const createButton = event.target; // Reference the clicked button
+                const selectedOption = raidSelect.options[raidSelect.selectedIndex];
 
-        // Update character details
-        document.getElementById('update-character-btn')?.addEventListener('click', async () => {
-            const characterNameInput = document.getElementById('character-name-input');
-            const itemLevelInput = document.getElementById('item-level-input');
-            if (!characterSelect.value || !characterNameInput.value || !itemLevelInput.value) {
-                alert('Please select a character and provide updated details.');
-                return;
-            }
-            await updateCharacterDetails(characterSelect, characterNameInput, itemLevelInput);
-            clearCharactersCache(playerSelect.value); // Clear character cache for this player
-            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
-        });
+                // Disable the button to prevent duplicate clicks
+                createButton.disabled = true;
 
-        // Delete a character
-        document.getElementById('delete-character-btn')?.addEventListener('click', async () => {
-            if (!characterSelect.value) {
-                alert('Please select a character to delete.');
-                return;
-            }
-            await deleteCharacterFromPlayer(characterSelect);
-            clearCharactersCache(playerSelect.value); // Clear character cache for this player
-            await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
-        });
+                if (!selectedOption || !selectedOption.value) {
+                    console.error('Please select a raid to create a group.');
+                    alert('Please select a raid to create a group.');
+                    createButton.disabled = false; // Re-enable the button
+                    return;
+                }
 
-        // Realtime listener for group members
-        supabase
-            .from('group_members')
-            .on('INSERT', payload => {
-                console.log('New member added:', payload.new);
-                updateGroupUI(payload.new.group_id);
-            })
-            .on('DELETE', payload => {
-                console.log('Member removed:', payload.old);
-                updateGroupUI(payload.old.group_id);
-            })
-            .subscribe();
-    }
+                const raidId = selectedOption.value;
+                const minItemLevel = selectedOption.getAttribute('data-min-ilvl');
+
+                if (!raidId || !minItemLevel) {
+                    console.error('Invalid raid selection or missing minimum item level.');
+                    alert('Invalid raid selection or missing minimum item level.');
+                    createButton.disabled = false; // Re-enable the button
+                    return;
+                }
+
+                try {
+                    createButton.textContent = 'Creating...';
+
+                    const result = await createRaidGroup(raidId, parseInt(minItemLevel, 10));
+
+                    if (result.error) {
+                        console.error(`Error creating group: ${result.error}`);
+                    } else {
+                        await loadExistingGroups();
+                    }
+                } catch (error) {
+                    console.error('Unexpected error creating group:', error);
+                } finally {
+                    // Re-enable the button and reset its text
+                    createButton.disabled = false;
+                    createButton.textContent = 'Create Raid Group';
+                }
+            });
+
+            // Realtime listener for groups
+            supabase
+                .channel('groups-realtime')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'groups' },
+                    payload => {
+                        console.log('Groups table changed:', payload);
+                        loadExistingGroups(payload.new?.raid_id || null);
+                    }
+                )
+                .subscribe();
+        }
+
+        if (playerForm) {
+            // Add Player / Character Page
+            const playerSelect = document.getElementById('player-select');
+            const classSelect = document.getElementById('class-select');
+            const characterSelect = document.getElementById('character-select');
+
+            console.log('Initializing player form...');
+            await loadClassesDropdown(classSelect); // Load classes from Supabase Storage
+            await loadPlayersForAddPage(playerSelect); // Populate players from cache or fetch
+
+            // Load characters for selected player
+            playerSelect?.addEventListener('change', async (event) => {
+                await loadCharactersForPlayer(event.target.value, characterSelect);
+            });
+
+            // Add a new player
+            document.getElementById('add-player-btn')?.addEventListener('click', async () => {
+                const usernameInput = document.getElementById('username-input');
+                if (usernameInput.value.trim() === '') {
+                    alert('Please enter a valid username.');
+                    return;
+                }
+                await addNewPlayer(usernameInput);
+                clearPlayersCache(); // Clear player cache
+                await loadPlayersForAddPage(playerSelect); // Refresh player dropdown
+            });
+
+            // Add a new character
+            document.getElementById('add-character-btn')?.addEventListener('click', async () => {
+                const characterNameInput = document.getElementById('character-name-input');
+                const itemLevelInput = document.getElementById('item-level-input');
+                if (!playerSelect.value || !characterNameInput.value || !itemLevelInput.value) {
+                    alert('Please fill in all fields to add a character.');
+                    return;
+                }
+                await addNewCharacter(playerSelect, characterNameInput, itemLevelInput, classSelect);
+                clearCharactersCache(playerSelect.value); // Clear character cache for this player
+                await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
+            });
+
+            // Update character details
+            document.getElementById('update-character-btn')?.addEventListener('click', async () => {
+                const characterNameInput = document.getElementById('character-name-input');
+                const itemLevelInput = document.getElementById('item-level-input');
+                if (!characterSelect.value || !characterNameInput.value || !itemLevelInput.value) {
+                    alert('Please select a character and provide updated details.');
+                    return;
+                }
+                await updateCharacterDetails(characterSelect, characterNameInput, itemLevelInput);
+                clearCharactersCache(playerSelect.value); // Clear character cache for this player
+                await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
+            });
+
+            // Delete a character
+            document.getElementById('delete-character-btn')?.addEventListener('click', async () => {
+                if (!characterSelect.value) {
+                    alert('Please select a character to delete.');
+                    return;
+                }
+                await deleteCharacterFromPlayer(characterSelect);
+                clearCharactersCache(playerSelect.value); // Clear character cache for this player
+                await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
+            });
+
+            // Realtime listener for group members
+            supabase
+                .channel('group-members-realtime')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'group_members' },
+                    payload => {
+                        console.log('Group members table changed:', payload);
+                        updateGroupUI(payload.new?.group_id || payload.old?.group_id);
+                    }
+                )
+                .subscribe();
+        }
+    })();
 });
