@@ -227,25 +227,6 @@ document.getElementById('create-raid-btn')?.addEventListener('click', async () =
     }
 });
 
-// Query to get raids
-window.fetchRaids = async () => {
-    try {
-        // Fetch all raids from the database
-        const { data: raids, error } = await supabase
-            .from('raids')
-            .select('id, name, min_item_level');
-
-        if (error) {
-            console.error('Error fetching raids:', error);
-            return { error: 'Error fetching raids' };
-        }
-
-        return raids;
-    } catch (error) {
-        console.error('Unexpected error fetching raids:', error);
-        return { error: 'Unexpected server error' };
-    }
-};
 
 // Query to get members of specific group
 function collectGroupMembers(groupElement) {
@@ -467,26 +448,6 @@ const fetchCharactersForPlayer = async (player_id, group_id) => {
         }));
     } catch (error) {
         console.error('Unexpected error fetching characters:', error);
-        return { error: 'Unexpected server error' };
-    }
-};
-
-// Query to get all classes
-const fetchAllClasses = async () => {
-    try {
-        const { data: classes, error } = await supabase
-            .from('classes')
-            .select('id, name')
-            .order('name', { ascending: true });
-
-        if (error) {
-            console.error('Error fetching classes:', error);
-            return { error: 'Error fetching classes' };
-        }
-
-        return classes;
-    } catch (error) {
-        console.error('Unexpected error fetching classes:', error);
         return { error: 'Unexpected server error' };
     }
 };
@@ -1503,25 +1464,14 @@ async function deleteCharacterFromPlayer(characterSelect) {
 }
 
 // Initialize on DOM content loaded
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Identify the page by checking for specific elements
     const raidSelect = document.getElementById('raid-select'); // For the Raid Organizer page
     const playerForm = document.getElementById('player-form'); // For the Add Player / Character page
 
-    document.addEventListener('DOMContentLoaded', async () => {
-        const classDropdown = document.getElementById('class-select'); // Replace with your actual dropdown ID
-        await loadClassesDropdown(classDropdown);
-    });
-    
-    document.addEventListener('DOMContentLoaded', async () => {
-        const raidDropdown = document.getElementById('raid-select'); // Replace with your actual dropdown ID
-        await loadRaidsDropdown(raidDropdown);
-    });
-    
-    
     if (raidSelect) {
         // Raid Organizer Page
-        populateRaidDropdown();
+        await loadRaidsDropdown(raidSelect); // Load raids from storage
         loadExistingGroups(); // Load groups initially
 
         // Load existing groups based on raid selection
@@ -1556,8 +1506,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const classSelect = document.getElementById('class-select');
         const characterSelect = document.getElementById('character-select');
 
+        await loadClassesDropdown(classSelect); // Load classes from storage
         loadPlayersForAddPage(playerSelect);
-        loadClassesForAddPage(classSelect);
 
         playerSelect?.addEventListener('change', async (event) => {
             await loadCharactersForPlayer(event.target.value, characterSelect);
