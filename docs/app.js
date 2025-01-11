@@ -215,20 +215,41 @@ window.fetchRaids = async () => {
 
 // Query to get members of specific group
 function collectGroupMembers(groupElement) {
+    if (!groupElement) {
+        console.error('Group element is not defined.');
+        return [];
+    }
+
     const rows = groupElement.querySelectorAll('tr');
     const members = [];
 
-    rows.forEach(row => {
+    rows.forEach((row, index) => {
         const playerSelect = row.querySelector('.player-select');
         const characterSelect = row.querySelector('.character-select');
 
-        if (playerSelect && playerSelect.value && characterSelect && characterSelect.value) {
+        if (!playerSelect || !characterSelect) {
+            console.warn(`Missing player or character select in row ${index + 1}`);
+            return;
+        }
+
+        const playerId = parseInt(playerSelect.value, 10);
+        const characterId = parseInt(characterSelect.value, 10);
+
+        if (!isNaN(playerId) && !isNaN(characterId)) {
             members.push({
-                player_id: parseInt(playerSelect.value, 10),
-                character_id: parseInt(characterSelect.value, 10),
+                player_id: playerId,
+                character_id: characterId,
             });
+        } else {
+            console.warn(
+                `Invalid selection in row ${index + 1}: Player ID (${playerSelect.value}), Character ID (${characterSelect.value})`
+            );
         }
     });
+
+    if (members.length === 0) {
+        console.warn('No valid members collected from the group.');
+    }
 
     return members;
 }
