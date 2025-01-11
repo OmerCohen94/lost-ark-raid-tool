@@ -1090,6 +1090,11 @@ async function loadExistingGroups(raid_id = null) {
             const headerText = document.createElement('h3');
             headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
 
+            // Player list container
+            const playerListContainer = document.createElement('div');
+            playerListContainer.classList.add('player-list');
+            groupDiv.appendChild(playerListContainer);
+
             // Minimize button
             const minimizeButton = document.createElement('button');
             minimizeButton.textContent = '−';
@@ -1120,6 +1125,7 @@ async function loadExistingGroups(raid_id = null) {
                 }
 
                 await updateGroupSlots(groupId, headerText);
+                await updatePlayerList(groupId, playerListContainer); // Update player list
             };
 
             // Clear button
@@ -1130,6 +1136,7 @@ async function loadExistingGroups(raid_id = null) {
                 const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
                 await resetGroup(groupId);
                 await updateGroupSlots(groupId, headerText);
+                await updatePlayerList(groupId, playerListContainer); // Clear player list
             };
 
             // Delete button
@@ -1172,38 +1179,38 @@ async function loadExistingGroups(raid_id = null) {
                 <th>Role</th>
             `;
             table.appendChild(roleHeaderRow);
-// Add Rows for Party 1 and Party 2
-for (let i = 0; i < 4; i++) {
-    const row = document.createElement('tr');
 
-    row.innerHTML = `
-        <td>
-            <select class="player-select form-control">
-                <option value="" disabled selected>Select Player</option>
-            </select>
-        </td>
-        <td>
-            <select class="character-select form-control" disabled>
-                <option value="" disabled selected>Select Character</option>
-            </select>
-        </td>
-        <td>${i < 3 ? 'DPS' : 'Support'}</td>
-        <td>
-            <select class="player-select form-control">
-                <option value="" disabled selected>Select Player</option>
-            </select>
-        </td>
-        <td>
-            <select class="character-select form-control" disabled>
-                <option value="" disabled selected>Select Character</option>
-            </select>
-        </td>
-        <td>${i < 3 ? 'DPS' : 'Support'}</td>
-    `;
+            // Add Rows for Party 1 and Party 2
+            for (let i = 0; i < 4; i++) {
+                const row = document.createElement('tr');
 
-    table.appendChild(row);
-}
+                row.innerHTML = `
+                    <td>
+                        <select class="player-select form-control">
+                            <option value="" disabled selected>Select Player</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select class="character-select form-control" disabled>
+                            <option value="" disabled selected>Select Character</option>
+                        </select>
+                    </td>
+                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
+                    <td>
+                        <select class="player-select form-control">
+                            <option value="" disabled selected>Select Player</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select class="character-select form-control" disabled>
+                            <option value="" disabled selected>Select Character</option>
+                        </select>
+                    </td>
+                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
+                `;
 
+                table.appendChild(row);
+            }
 
             groupDiv.appendChild(table);
             groupsContainer.appendChild(groupDiv);
@@ -1214,17 +1221,44 @@ for (let i = 0; i < 4; i++) {
                 await populatePlayerDropdown(group.id, select);
             }
 
-            // Restore dropdown selections
-            restoreDropdownSelections(group.id);
-
             // Initialize listeners for dropdowns
-            initializePlayerAndCharacterListeners(group.id);            
+            initializePlayerAndCharacterListeners(group.id);
 
+            // Update player list
+            await updatePlayerList(group.id, playerListContainer);
         }
-        initializePlayerAndCharacterListeners();
-
     } catch (error) {
         console.error('Error loading groups:', error);
+    }
+}
+
+// Function to dynamically update the player list
+async function updatePlayerList(groupId, container) {
+    try {
+        const { data: members, error } = await supabase
+            .from('group_members')
+            .select(`
+                players (username),
+                characters (name, item_level, classes (name))
+            `)
+            .eq('group_id', groupId);
+
+        if (error || !members) {
+            console.error('Error fetching group members:', error);
+            container.innerHTML = '<p>No players added yet.</p>';
+            return;
+        }
+
+        container.innerHTML = ''; // Clear the container
+
+        members.forEach(member => {
+            const playerInfo = document.createElement('div');
+            playerInfo.textContent = `${member.players.username} - ${member.characters.name} (${member.characters.classes.name}, IL: ${member.characters.item_level})`;
+            container.appendChild(playerInfo);
+        });
+    } catch (error) {
+        console.error('Unexpected error updating player list:', error);
+        container.innerHTML = '<p>Error updating player list.</p>';
     }
 }
 
