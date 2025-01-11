@@ -180,9 +180,7 @@ async function fetchGroupsWithSlots(raidId = null) {
                 min_item_level,
                 raid_id,
                 raids (name), -- Fetch the raid name
-                group_members (
-                    id
-                ) -- Fetch members to calculate slots
+                group_members (id) -- Fetch members to calculate slots
             `);
 
         if (raidId) query.eq('raid_id', raidId);
