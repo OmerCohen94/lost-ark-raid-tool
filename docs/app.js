@@ -790,9 +790,23 @@ async function createRaidGroup(raidId, minItemLevel) {
             return { error: 'Raid ID and minimum item level are required' };
         }
 
+        // Fetch existing groups to determine the next group name
+        const { count: existingGroups, error: countError } = await supabase
+            .from('groups')
+            .select('*', { count: 'exact' })
+            .eq('raid_id', raidId);
+
+        if (countError) {
+            console.error('Error counting existing groups:', countError);
+            return { error: 'Error counting existing groups' };
+        }
+
+        const nextGroupNumber = (existingGroups || 0) + 1;
+        const groupName = `Group ${nextGroupNumber}`;
+
         const { data: newGroup, error: insertError } = await supabase
             .from('groups')
-            .insert([{ raid_id: raidId, min_item_level: minItemLevel }])
+            .insert([{ raid_id: raidId, group_name: groupName, min_item_level: minItemLevel }])
             .select()
             .single();
 
@@ -813,7 +827,6 @@ async function createRaidGroup(raidId, minItemLevel) {
         isCreatingGroup = false; // Reset flag
     }
 }
-
 
 // Function to delete a raid group
 async function deleteRaidGroup(groupId, raidId) {
