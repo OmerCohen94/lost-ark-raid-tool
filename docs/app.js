@@ -4,6 +4,62 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Function to fetch static data from SUPABASE
+async function fetchFromStorage(filePath) {
+    const { data, error } = await supabase.storage
+        .from('static-data') // Replace with your bucket name
+        .download(filePath);
+
+    if (error) {
+        console.error('Error fetching from storage:', error);
+        return null;
+    }
+
+    try {
+        const text = await data.text(); // Convert the file content to text
+        return JSON.parse(text); // Parse and return JSON data
+    } catch (parseError) {
+        console.error('Error parsing JSON:', parseError);
+        return null;
+    }
+}
+
+// Function to load classes into dropdowns
+async function loadClassesDropdown(dropdownElement) {
+    const classes = await fetchFromStorage('classes.json'); // Replace with your file path
+
+    if (!classes) {
+        dropdownElement.innerHTML = '<option value="" disabled>Error loading classes</option>';
+        return;
+    }
+
+    dropdownElement.innerHTML = '<option value="" disabled selected>Select Class</option>';
+    classes.forEach(cls => {
+        const option = document.createElement('option');
+        option.value = cls.id;
+        option.textContent = cls.name;
+        dropdownElement.appendChild(option);
+    });
+}
+
+// Function to load raids into dropdowns
+async function loadRaidsDropdown(dropdownElement) {
+    const raids = await fetchFromStorage('raids.json'); // Replace with your file path
+
+    if (!raids) {
+        dropdownElement.innerHTML = '<option value="" disabled>Error loading raids</option>';
+        return;
+    }
+
+    dropdownElement.innerHTML = '<option value="" disabled selected>Select Raid</option>';
+    raids.forEach(raid => {
+        const option = document.createElement('option');
+        option.value = raid.id;
+        option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
+        dropdownElement.appendChild(option);
+    });
+}
+
 // Cache
 const cache = {
     players: new Map(), // Cache for player data keyed by groupId
@@ -1452,6 +1508,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const raidSelect = document.getElementById('raid-select'); // For the Raid Organizer page
     const playerForm = document.getElementById('player-form'); // For the Add Player / Character page
 
+    document.addEventListener('DOMContentLoaded', async () => {
+        const classDropdown = document.getElementById('class-select'); // Replace with your actual dropdown ID
+        await loadClassesDropdown(classDropdown);
+    });
+    
+    document.addEventListener('DOMContentLoaded', async () => {
+        const raidDropdown = document.getElementById('raid-select'); // Replace with your actual dropdown ID
+        await loadRaidsDropdown(raidDropdown);
+    });
+    
+    
     if (raidSelect) {
         // Raid Organizer Page
         populateRaidDropdown();
