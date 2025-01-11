@@ -839,9 +839,15 @@ async function populateRaidDropdown() {
 }
 
 // Function to create a raid group SUPABASE
+let isCreatingGroup = false; // Prevent duplicate submissions
+
 async function createRaidGroup(raidId, minItemLevel) {
+    if (isCreatingGroup) return { error: 'A group creation is already in progress' };
+    isCreatingGroup = true;
+
     if (!raidId || minItemLevel === null || minItemLevel === undefined) {
         console.error('Raid ID and minimum item level are required.');
+        isCreatingGroup = false; // Reset flag
         return { error: 'Raid ID and minimum item level are required.' };
     }
 
@@ -854,6 +860,7 @@ async function createRaidGroup(raidId, minItemLevel) {
 
         if (countError) {
             console.error('Error fetching existing groups count:', countError);
+            isCreatingGroup = false; // Reset flag
             return { error: 'Error fetching existing groups count.' };
         }
 
@@ -869,6 +876,7 @@ async function createRaidGroup(raidId, minItemLevel) {
 
         if (error || !newGroup) {
             console.error('Error creating group:', error || 'No data returned');
+            isCreatingGroup = false; // Reset flag
             return { error: 'Error creating group.' };
         }
 
@@ -877,8 +885,11 @@ async function createRaidGroup(raidId, minItemLevel) {
     } catch (error) {
         console.error('Unexpected error creating group:', error);
         return { error: 'Unexpected error creating group.' };
+    } finally {
+        isCreatingGroup = false; // Reset flag after process completion
     }
 }
+
 
 // Function to delete a raid group SUPABASE
 async function deleteRaidGroup(groupId) {
