@@ -15,12 +15,8 @@ const fetchGroupsWithSlots = async () => {
                 id,
                 group_name,
                 min_item_level,
-                raids (
-                    name
-                ),
-                group_members (
-                    id
-                )
+                raids (name),
+                group_members!group_members_group_id_fkey (id)
             `);
 
         if (error) {
@@ -29,16 +25,14 @@ const fetchGroupsWithSlots = async () => {
         }
 
         // Process the results to calculate filled_slots and total_slots
-        const processedGroups = groups.map(group => {
-            return {
-                id: group.id,
-                group_name: group.group_name,
-                min_item_level: group.min_item_level,
-                raid_name: group.raids?.name || 'Unknown Raid',
-                filled_slots: group.group_members?.length || 0, // Count the group members
-                total_slots: 8, // Assuming a fixed 8 slots per group
-            };
-        });
+        const processedGroups = groups.map(group => ({
+            id: group.id,
+            group_name: group.group_name,
+            min_item_level: group.min_item_level,
+            raid_name: group.raids?.name || 'Unknown Raid',
+            filled_slots: group.group_members?.length || 0, // Count the group members
+            total_slots: 8, // Assuming a fixed 8 slots per group
+        }));
 
         return processedGroups;
     } catch (error) {
