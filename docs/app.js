@@ -72,16 +72,71 @@ async function loadClassesDropdown(dropdownElement) {
     }
 }
 
-// Helper function to populate the dropdown OPTIMIZED
-function populateDropdown(classes, dropdownElement) {
-    dropdownElement.innerHTML = '<option value="" disabled selected>Select Class</option>';
-    classes.forEach(cls => {
-        const option = document.createElement('option');
-        option.value = cls.id; // Use the ID as the value
-        option.textContent = cls.name; // Display only the class name
-        dropdownElement.appendChild(option);
-    });
+// Optimized helper function to populate dropdowns
+async function populateDropdown({
+    dropdown,
+    endpoint,
+    cacheKey,
+    queryFilters = {},
+    textFormatter = item => item.name, // Default text formatter
+    isDisabled = () => false, // Default disabled condition
+    preselectedValue = null, // Optional preselected value
+}) {
+    try {
+        // Check cache first
+        if (cacheKey && staticDataCache.has(cacheKey)) {
+            console.log(`Cache hit for ${cacheKey}`);
+            const cachedData = staticDataCache.get(cacheKey);
+            populateDropdownOptions(dropdown, cachedData, textFormatter, isDisabled, preselectedValue);
+            return cachedData;
+        }
+
+        // Fetch from database
+        const { data, error } = await supabase
+            .from(endpoint)
+            .select('*')
+            .match(queryFilters);
+
+        if (error) {
+            console.error(`Error fetching data from ${endpoint}:`, error);
+            dropdown.innerHTML = '<option value="" disabled>Error loading data</option>';
+            dropdown.disabled = true;
+            return null;
+        }
+
+        // Cache the result if a cacheKey is provided
+        if (cacheKey) {
+            staticDataCache.set(cacheKey, data);
+        }
+
+        // Populate the dropdown
+        populateDropdownOptions(dropdown, data, textFormatter, isDisabled, preselectedValue);
+        return data;
+    } catch (error) {
+        console.error(`Unexpected error populating dropdown:`, error);
+        dropdown.innerHTML = '<option value="" disabled>Error loading data</option>';
+        dropdown.disabled = true;
+        return null;
+    }
 }
+
+// Helper to populate options in a dropdown
+function populateDropdownOptions(dropdown, data, textFormatter, isDisabled, preselectedValue) {
+    dropdown.innerHTML = '<option value="" disabled selected>Select an option</option>';
+    data.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = textFormatter(item);
+        option.disabled = isDisabled(item);
+        dropdown.appendChild(option);
+    });
+
+    if (preselectedValue) {
+        dropdown.value = preselectedValue;
+    }
+    dropdown.disabled = false;
+}
+
 
 // Cache for dynamic entities OPTIMIZED
 const cache = {
@@ -585,23 +640,6 @@ async function loadRaidsDropdown(raidSelect) {
     }
 }
 
-// Generic helper function to populate dropdowns OPTIMIZED
-function populateDropdown(dropdownElement, options, placeholder = 'Select an option') {
-    dropdownElement.innerHTML = `<option value="" disabled selected>${placeholder}</option>`;
-    options.forEach(optionData => {
-        const option = document.createElement('option');
-        option.value = optionData.id;
-        if (optionData.dataAttributes) {
-            // Add additional attributes dynamically
-            Object.entries(optionData.dataAttributes).forEach(([key, value]) => {
-                option.setAttribute(key, value);
-            });
-        }
-        option.textContent = optionData.text;
-        dropdownElement.appendChild(option);
-    });
-}
-
 // Fetch groups for a specific raid with caching OPTIMIZED
 async function fetchGroupsForRaid(raidId) {
     if (!raidId) {
@@ -813,96 +851,37 @@ const updateCharacter = async (character_id, player_id, name, item_level) => {
     }
 };
 
-// Function to populate characters in a dropdown SUPABASE OPTIMIZED THIS MIGHT BE A CUNT HERE YO
-async function populateCharacterDropdown(playerId, groupId, characterSelect) {
+// Function to populate characters in a dropdown SUPABASE OPTIMIZED
+async function populateCharacterDropdown(playerId, groupId, dropdown) {
     if (!playerId || !groupId) {
         console.warn('Player ID and Group ID are required to populate the character dropdown.');
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Player First</option>';
-        characterSelect.disabled = true;
+        dropdown.innerHTML = '<option value="" disabled selected>Select Player First</option>';
+        dropdown.disabled = true;
         return;
     }
 
-    try {
-        // Fetch eligible characters for the player and group
-        const { data: eligibleCharacters, error } = await supabase
-            .from('eligible_characters')
-            .select('*')
-            .eq('player_id', playerId)
-            .eq('group_id', groupId);
-
-        if (error) {
-            console.error('Error fetching eligible characters:', error);
-            characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-            characterSelect.disabled = true;
-            return;
-        }
-
-        // Populate the dropdown with eligible characters
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-        eligibleCharacters.forEach(character => {
-            const option = document.createElement('option');
-            option.value = character.character_id;
-
-            if (!character.is_eligible) {
-                option.disabled = true;
-                option.textContent = `${character.character_name} (${character.item_level}) - Ineligible`;
-            } else if (character.is_assigned) {
-                option.disabled = true;
-                option.textContent = `${character.character_name} (${character.item_level}) - Already Assigned`;
-            } else {
-                option.textContent = `${character.character_name} (${character.item_level})`;
-            }
-
-            characterSelect.appendChild(option);
-        });
-
-        characterSelect.disabled = false;
-    } catch (error) {
-        console.error('Unexpected error populating character dropdown:', error);
-        characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
-        characterSelect.disabled = true;
-    }
+    const queryFilters = { player_id: playerId, group_id: groupId };
+    await populateDropdown({
+        dropdown,
+        endpoint: 'eligible_characters',
+        cacheKey: `characters-${playerId}-${groupId}`,
+        queryFilters,
+        textFormatter: char => `${char.character_name} (${char.item_level})`,
+        isDisabled: char => char.is_assigned || !char.is_eligible,
+    });
 }
 
-// Function to populate players in a dropdown OPTIMIZED
-async function populatePlayerDropdown(groupId, playerSelect) {
-    if (!groupId) {
-        console.error('Group ID is required to populate player dropdown.');
-        playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
-        playerSelect.disabled = true;
-        return;
-    }
-
-    try {
-        // Fetch eligible players for the group
-        const { eligiblePlayers } = await fetchEligibleCharacters(null, groupId);
-
-        if (!eligiblePlayers || eligiblePlayers.length === 0) {
-            console.warn(`No eligible players found for Group: ${groupId}`);
-            playerSelect.innerHTML = '<option value="" disabled>No eligible players</option>';
-            playerSelect.disabled = true;
-            return;
-        }
-
-        console.log(`Populating player dropdown for group ${groupId} with players:`, eligiblePlayers);
-
-        // Use the generic helper function to populate the dropdown
-        populateDropdown(
-            playerSelect,
-            eligiblePlayers.map(player => ({
-                id: player.id,
-                text: player.isDisabled ? `${player.username} - Already Selected` : player.username,
-                dataAttributes: { disabled: player.isDisabled ? 'true' : null },
-            })),
-            'Select Player'
-        );
-
-        playerSelect.disabled = false;
-    } catch (error) {
-        console.error('Error populating player dropdown:', error);
-        playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
-        playerSelect.disabled = true;
-    }
+// Function to populate players in a dropdown SUPABASE OPTIMIZED
+async function populatePlayerDropdown(groupId, dropdown) {
+    const queryFilters = { group_id: groupId };
+    await populateDropdown({
+        dropdown,
+        endpoint: 'eligible_players',
+        cacheKey: `players-${groupId}`,
+        queryFilters,
+        textFormatter: player => player.username,
+        isDisabled: player => player.isDisabled,
+    });
 }
 
 let isCreatingGroup = false; // Prevent duplicate submissions
