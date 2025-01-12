@@ -1260,7 +1260,7 @@ function addGroupButtons(group, groupDiv, groupHeader) {
     const clearButton = document.createElement('button');
     clearButton.textContent = 'Clear';
     clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
-    clearButton.onclick = async () => handleClearGroup(group.id, groupDiv);
+    clearButton.onclick = async () => resetGroup(group.id, groupDiv);
     groupHeader.appendChild(clearButton);
 
     const deleteButton = document.createElement('button');
