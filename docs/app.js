@@ -4,9 +4,19 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Function to fetch static data from SUPABASE
+// Cache to store fetched static data in memory OPTIMIZED
+const staticDataCache = new Map();
+
+// Function to fetch static data from SUPABASE with caching OPTIMIZED
 async function fetchFromStorage(filePath) {
     try {
+        // Check if data is already cached
+        if (staticDataCache.has(filePath)) {
+            console.log(`Cache hit for ${filePath}`);
+            return staticDataCache.get(filePath);
+        }
+
+        // Fetch from Supabase Storage
         const { data, error } = await supabase.storage
             .from('static-data') // Use the correct bucket name
             .download(filePath);
@@ -17,127 +27,147 @@ async function fetchFromStorage(filePath) {
         }
 
         const text = await data.text(); // Convert the file content to text
-        console.log(`Fetched data from ${filePath}:`, text);
-        return JSON.parse(text); // Parse and return JSON
+        const jsonData = JSON.parse(text); // Parse the JSON data
+
+        // Cache the fetched data
+        staticDataCache.set(filePath, jsonData);
+
+        console.log(`Fetched and cached data from ${filePath}:`, jsonData);
+        return jsonData;
     } catch (parseError) {
         console.error(`Error parsing JSON from ${filePath}:`, parseError);
         return null;
     }
 }
 
-// Function to load classes into dropdowns
+// Function to load classes into dropdowns with caching OPTIMIZED
 async function loadClassesDropdown(dropdownElement) {
-    const classes = await fetchFromStorage('classes.json'); // Replace with your file path
+    try {
+        // Check if the classes data is already cached
+        const cacheKey = 'classes';
+        if (staticDataCache.has(cacheKey)) {
+            console.log('Cache hit for classes.json');
+            populateDropdown(staticDataCache.get(cacheKey), dropdownElement);
+            return;
+        }
 
-    if (!classes) {
+        // Fetch from Supabase Storage
+        const classes = await fetchFromStorage('classes.json');
+
+        if (!classes) {
+            console.error('Failed to load classes from storage.');
+            dropdownElement.innerHTML = '<option value="" disabled>Error loading classes</option>';
+            return;
+        }
+
+        // Cache the fetched data
+        staticDataCache.set(cacheKey, classes);
+
+        // Populate dropdown
+        populateDropdown(classes, dropdownElement);
+        console.log('Classes dropdown populated successfully and cached.');
+    } catch (error) {
+        console.error('Error loading classes into dropdown:', error);
         dropdownElement.innerHTML = '<option value="" disabled>Error loading classes</option>';
-        return;
     }
+}
 
+// Helper function to populate the dropdown OPTIMIZED
+function populateDropdown(classes, dropdownElement) {
     dropdownElement.innerHTML = '<option value="" disabled selected>Select Class</option>';
     classes.forEach(cls => {
         const option = document.createElement('option');
-        option.value = cls.id;
-        option.textContent = cls.name;
+        option.value = cls.id; // Use the ID as the value
+        option.textContent = cls.name; // Display only the class name
         dropdownElement.appendChild(option);
     });
 }
 
-// Function to load raids into dropdowns
-async function fetchRaids() {
-    if (cache.raids) return cache.raids; // In-memory cache
-
-    const storedRaids = localStorage.getItem('raids');
-    if (storedRaids) {
-        cache.raids = JSON.parse(storedRaids);
-        return cache.raids;
-    }
-
-    try {
-        const raids = await fetchFromStorage('raids.json'); // Fetch from Supabase Storage
-        if (raids) {
-            cache.raids = raids; // Cache in memory
-            localStorage.setItem('raids', JSON.stringify(raids)); // Persist to localStorage
-        }
-        return raids || [];
-    } catch (error) {
-        console.error('Error fetching raids:', error);
-        return [];
-    }
-}
-
-// Cache
+// Cache for dynamic entities OPTIMIZED
 const cache = {
-    players: new Map(),
-    characters: new Map(),
-    raids: null,
-    groups: new Map(),
+    players: new Map(), // Dynamic, fetched per group or action
+    characters: new Map(), // Dynamic, based on player or group context
+    groups: new Map() // Dynamic, updated during group operations
 };
 
-// Clear Players Cache
+// Clear Players Cache OPTIMIZED
 function clearPlayersCache(groupId = null) {
     if (groupId) {
+        // Clear players for a specific group
         cache.players.delete(groupId);
-        localStorage.removeItem(`players-${groupId}`);
+        console.log(`Cleared players cache for group ID ${groupId}`);
     } else {
+        // Clear all players cache
         cache.players.clear();
-        for (const key in localStorage) {
-            if (key.startsWith('players-')) localStorage.removeItem(key);
-        }
+        console.log('Cleared all players cache');
     }
 }
 
-// Clear Characters Cache
+// Clear Characters Cache OPTIMIZED
 function clearCharactersCache(playerId, groupId = null) {
     if (groupId) {
+        // Clear characters for a specific player-group combination
         const cacheKey = `${playerId}-${groupId}`;
         cache.characters.delete(cacheKey);
-        localStorage.removeItem(`characters-${cacheKey}`);
+        console.log(`Cleared characters cache for player ID ${playerId}, group ID ${groupId}`);
     } else {
+        // Clear all characters cache
         cache.characters.clear();
-        for (const key in localStorage) {
-            if (key.startsWith('characters-')) localStorage.removeItem(key);
-        }
+        console.log('Cleared all characters cache');
     }
 }
 
-// Function to disable already assigned players in relevant groups
+// Function to disable already assigned players in relevant groups OPTIMIZED
 async function disableAssignedPlayers(groupId) {
     try {
+        // Fetch assigned players for the specific group
         const { data: assignedPlayers, error } = await supabase
             .from('group_members')
             .select('player_id')
-            .eq('group_id', groupId); // Fetch only for the specific group
+            .eq('group_id', groupId);
 
         if (error) {
             console.error('Error fetching assigned players:', error);
             return;
         }
 
+        if (!assignedPlayers || assignedPlayers.length === 0) {
+            console.log(`No assigned players found for group ID ${groupId}.`);
+            return;
+        }
+
         const assignedPlayerIds = new Set(assignedPlayers.map(p => p.player_id)); // Use Set to avoid duplicates
 
-        // Disable assigned players only in the relevant group's dropdowns
+        // Locate the relevant group element
         const groupElement = document.querySelector(`.raid-group[data-group-id="${groupId}"]`);
-        if (!groupElement) return;
+        if (!groupElement) {
+            console.error(`Group element not found for group ID ${groupId}`);
+            return;
+        }
 
+        // Disable assigned players in the group's player dropdowns
         const playerOptions = groupElement.querySelectorAll('.player-select option');
         playerOptions.forEach(option => {
             const playerId = parseInt(option.value, 10);
             if (assignedPlayerIds.has(playerId)) {
                 option.disabled = true;
-                if (!option.textContent.includes('Already Assigned')) {
-                    option.textContent += ' - Already Assigned';
-                }
+                option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
+            } else {
+                option.disabled = false; // Re-enable if the player is no longer assigned
+                option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned" if present
             }
         });
+
+        console.log(`Updated player dropdowns for group ID ${groupId}.`);
     } catch (error) {
         console.error('Error disabling assigned players:', error);
     }
 }
 
-// Function to disable already assigned characters across all groups immediately
+// Function to disable already assigned characters across all groups OPTIMIZED
 async function disableAssignedCharacters() {
     try {
+        // Fetch assigned characters from Supabase
         const { data: assignedCharacters, error } = await supabase
             .from('group_members')
             .select('character_id');
@@ -147,43 +177,64 @@ async function disableAssignedCharacters() {
             return;
         }
 
+        if (!assignedCharacters || assignedCharacters.length === 0) {
+            console.log('No assigned characters found.');
+            return;
+        }
+
         const assignedCharacterIds = new Set(assignedCharacters.map(c => c.character_id)); // Use Set to avoid duplicates
 
-        // Update all character dropdowns to reflect already assigned characters
-        const characterOptions = document.querySelectorAll('.character-select option');
-        characterOptions.forEach(option => {
-            const charId = parseInt(option.value, 10);
-            if (assignedCharacterIds.has(charId)) {
-                option.disabled = true;
-                if (!option.textContent.includes('Already Assigned')) {
-                    option.textContent += ' - Already Assigned';
+        // Update all character dropdowns
+        const characterDropdowns = document.querySelectorAll('.character-select');
+        characterDropdowns.forEach(dropdown => {
+            const options = dropdown.querySelectorAll('option');
+            options.forEach(option => {
+                const charId = parseInt(option.value, 10);
+                if (assignedCharacterIds.has(charId)) {
+                    option.disabled = true;
+                    option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
+                } else {
+                    option.disabled = false; // Re-enable if the character is no longer assigned
+                    option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned" if present
                 }
-            } else {
-                option.disabled = false; // Re-enable if character is no longer assigned
-                option.textContent = option.textContent.replace(' - Already Assigned', '');
-            }
+            });
         });
+
+        console.log('Character dropdowns updated to reflect assigned characters.');
     } catch (error) {
         console.error('Error disabling assigned characters:', error);
     }
 }
 
-// Clear Raids Cache
+// Clear Raids Cache OPTIMIZED
 function clearRaidsCache() {
-    cache.raids = null;
-    localStorage.removeItem('raids');
-}
-
-// Clear Groups Cache
-function clearGroupsCache(raidId = null) {
-    if (raidId) {
-        cache.groups.delete(raidId);
+    const cacheKey = 'raids';
+    if (staticDataCache.has(cacheKey)) {
+        staticDataCache.delete(cacheKey); // Remove from in-memory cache
+        console.log('Cleared raids cache.');
     } else {
-        cache.groups.clear();
+        console.log('No raids cache to clear.');
     }
 }
 
-// Updated fetchEligibleCharacters to handle null playerId
+// Clear Groups Cache OPTIMIZED
+function clearGroupsCache(raidId = null) {
+    if (raidId) {
+        // Clear cache for a specific raid
+        if (cache.groups.has(raidId)) {
+            cache.groups.delete(raidId);
+            console.log(`Cleared groups cache for raid ID ${raidId}`);
+        } else {
+            console.log(`No groups cache found for raid ID ${raidId}`);
+        }
+    } else {
+        // Clear all groups cache
+        cache.groups.clear();
+        console.log('Cleared all groups cache');
+    }
+}
+
+// Fetch eligible characters and players for a group OPTIMIZED
 async function fetchEligibleCharacters(playerId, groupId) {
     try {
         // Fetch the group to determine raid_id
@@ -200,7 +251,7 @@ async function fetchEligibleCharacters(playerId, groupId) {
 
         const raidId = group.raid_id;
 
-        // Fetch eligible characters only if playerId is provided
+        // Fetch eligible characters for the given playerId
         let eligibleCharacters = [];
         if (playerId) {
             const { data: characters, error: charactersError } = await supabase
@@ -216,7 +267,7 @@ async function fetchEligibleCharacters(playerId, groupId) {
             }
         }
 
-        // Fetch all players and check their eligibility
+        // Fetch all players
         const { data: players, error: playersError } = await supabase
             .from('players')
             .select('id, username');
@@ -226,12 +277,15 @@ async function fetchEligibleCharacters(playerId, groupId) {
             return { eligiblePlayers: [], eligibleCharacters };
         }
 
-        // Disable players who are already selected in the group
+        // Extract player IDs with assigned characters
+        const assignedPlayerIds = new Set(
+            eligibleCharacters.filter(char => char.is_assigned).map(char => char.player_id)
+        );
+
+        // Mark players as disabled if their characters are already assigned in the group
         const eligiblePlayers = players.map(player => ({
             ...player,
-            isDisabled: eligibleCharacters.some(
-                char => char.player_id === player.id && char.is_assigned
-            )
+            isDisabled: assignedPlayerIds.has(player.id) // Mark player as disabled if any character is assigned
         }));
 
         console.log(
@@ -246,32 +300,10 @@ async function fetchEligibleCharacters(playerId, groupId) {
     }
 }
 
-// Get raids from cache
-async function fetchRaids() {
-    if (cache.raids) return cache.raids; // In-memory cache
-
-    const storedRaids = localStorage.getItem('raids');
-    if (storedRaids) {
-        cache.raids = JSON.parse(storedRaids);
-        return cache.raids;
-    }
-
-    try {
-        const raids = await fetchFromStorage('raids.json');
-        if (raids) {
-            cache.raids = raids;
-            localStorage.setItem('raids', JSON.stringify(raids));
-        }
-        return raids || [];
-    } catch (error) {
-        console.error('Error fetching raids:', error);
-        return [];
-    }
-}
-
-// Query to get groups
+// Query to get groups with calculated slots OPTIMIZED
 async function fetchGroupsWithSlots(raidId = null) {
     try {
+        // Build the query for fetching groups and their related data
         const query = supabase
             .from('groups')
             .select(`
@@ -283,6 +315,7 @@ async function fetchGroupsWithSlots(raidId = null) {
                 group_members (id)
             `);
 
+        // Add filtering by raidId if provided
         if (raidId) query.eq('raid_id', raidId);
 
         const { data, error } = await query;
@@ -292,14 +325,20 @@ async function fetchGroupsWithSlots(raidId = null) {
             return [];
         }
 
+        if (!data || data.length === 0) {
+            console.log('No groups found.');
+            return [];
+        }
+
         // Calculate slots for each group
         const groupsWithSlots = data.map(group => ({
             ...group,
             raid_name: group.raids?.name || 'Unknown Raid',
-            filled_slots: group.group_members.length || 0,
+            filled_slots: group.group_members?.length || 0, // Count members in the group
             total_slots: 8, // Assuming 8 slots per group
         }));
 
+        console.log('Fetched groups with slots:', groupsWithSlots);
         return groupsWithSlots;
     } catch (error) {
         console.error('Unexpected error fetching groups with slots:', error);
@@ -307,33 +346,43 @@ async function fetchGroupsWithSlots(raidId = null) {
     }
 }
 
-// Query to add new player
+// Query to add a new player OPTIMIZED
 async function addNewPlayer(usernameInput) {
     const username = usernameInput.value.trim();
+
     if (!username) {
         alert('Please enter a valid username.');
         return;
     }
 
     try {
-        const result = await addPlayer(username);
+        // Insert the new player into the database
+        const { data, error } = await supabase
+            .from('players')
+            .insert([{ username }])
+            .select()
+            .single();
 
-        if (result.error) {
-            console.error('Error adding player:', result.error);
-            alert(`Error: ${result.error}`);
-        } else {
-            alert('Player added successfully!');
-            usernameInput.value = ''; // Clear the input field
-
-            clearPlayersCache(); // Clear players cache to refresh player dropdowns
+        if (error) {
+            console.error('Error adding player:', error);
+            alert(`Error: ${error.message}`);
+            return;
         }
+
+        alert('Player added successfully!');
+        usernameInput.value = ''; // Clear the input field
+
+        // Clear players cache to refresh dropdowns dynamically
+        clearPlayersCache();
+
+        console.log('New player added:', data);
     } catch (error) {
         console.error('Unexpected error adding player:', error);
         alert('Unexpected error adding player.');
     }
 }
 
-// Query to get players for group dropdown
+// Query to get players for group dropdown OPTIMIZED
 async function fetchPlayersForGroup(groupId) {
     // Check in-memory cache first
     if (cache.players.has(groupId)) {
@@ -342,8 +391,8 @@ async function fetchPlayersForGroup(groupId) {
     }
 
     try {
-        // Fetch from database
-        const { data, error } = await supabase
+        // Fetch all players from the database
+        const { data: players, error } = await supabase
             .from('players')
             .select('id, username');
 
@@ -352,18 +401,18 @@ async function fetchPlayersForGroup(groupId) {
             return [];
         }
 
-        // Cache the results in memory and localStorage
-        cache.players.set(groupId, data);
-        localStorage.setItem(`players-${groupId}`, JSON.stringify(data));
+        // Cache the results in memory
+        cache.players.set(groupId, players);
 
-        return data;
+        console.log(`Fetched players for group ${groupId}:`, players);
+        return players;
     } catch (error) {
         console.error('Unexpected error fetching players:', error);
         return [];
     }
 }
 
-// Function to fetch group members
+// Function to fetch group members from the UI OPTIMIZED
 function fetchGroupMembers(groupDiv) {
     const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
 
@@ -375,22 +424,34 @@ function fetchGroupMembers(groupDiv) {
     const rows = groupDiv.querySelectorAll('.assignment-table tr');
     const members = [];
 
-    rows.forEach(row => {
+    rows.forEach((row, index) => {
         const playerSelect = row.querySelector('.player-select');
         const characterSelect = row.querySelector('.character-select');
 
-        if (playerSelect && characterSelect && playerSelect.value && characterSelect.value) {
-            members.push({
-                player_id: parseInt(playerSelect.value, 10),
-                character_id: parseInt(characterSelect.value, 10)
-            });
+        if (playerSelect && characterSelect) {
+            const playerId = parseInt(playerSelect.value, 10);
+            const characterId = parseInt(characterSelect.value, 10);
+
+            if (!isNaN(playerId) && !isNaN(characterId)) {
+                members.push({
+                    player_id: playerId,
+                    character_id: characterId
+                });
+            } else {
+                console.warn(
+                    `Invalid selection in row ${index + 1}: Player ID or Character ID missing or invalid.`
+                );
+            }
+        } else {
+            console.warn(`Missing player or character dropdown in row ${index + 1}`);
         }
     });
 
+    console.log(`Fetched members for group ID ${groupId}:`, members);
     return members;
 }
 
-// Query to save members in specific group
+// Query to save members in a specific group OPTIMIZED
 const updateGroupMembers = async (group_id, members) => {
     if (!Array.isArray(members) || members.length === 0) {
         console.error('Invalid or empty members data');
@@ -413,6 +474,7 @@ const updateGroupMembers = async (group_id, members) => {
         const { raid_id } = group;
 
         // Validate that no character is already assigned to another group in the same raid
+        const conflictingCharacters = [];
         for (const member of members) {
             const { data: conflict, error: conflictError } = await supabase
                 .from('group_members')
@@ -422,9 +484,25 @@ const updateGroupMembers = async (group_id, members) => {
                 .neq('group_id', group_id)
                 .single();
 
-            if (conflictError === null && conflict) {
-                return { error: `Character is already assigned to ${conflict.groups.group_name} in this raid.` };
+            if (conflictError) {
+                console.error(`Error checking character ${member.character_id} assignment:`, conflictError);
+                return { error: `Error checking character assignment for character ID ${member.character_id}` };
             }
+
+            if (conflict) {
+                conflictingCharacters.push({
+                    character_id: member.character_id,
+                    group_name: conflict.groups.group_name,
+                });
+            }
+        }
+
+        if (conflictingCharacters.length > 0) {
+            return {
+                error: `One or more characters are already assigned to other groups: ${conflictingCharacters
+                    .map(c => `${c.character_id} (${c.group_name})`)
+                    .join(', ')}`,
+            };
         }
 
         // Upsert members into group_members table
@@ -436,7 +514,7 @@ const updateGroupMembers = async (group_id, members) => {
                     player_id: member.player_id,
                     character_id: member.character_id,
                 })),
-                { onConflict: ['group_id', 'player_id'] }
+                { onConflict: ['group_id', 'player_id', 'character_id'] } // Avoid duplicate records
             );
 
         if (upsertError) {
@@ -444,6 +522,7 @@ const updateGroupMembers = async (group_id, members) => {
             return { error: 'Error updating group members' };
         }
 
+        console.log('Group members updated successfully:', members);
         return { message: 'Group members updated successfully' };
     } catch (error) {
         console.error('Unexpected error updating group members:', error);
@@ -451,9 +530,15 @@ const updateGroupMembers = async (group_id, members) => {
     }
 };
 
-// Query to delete group
+// Query to delete a group and its associated members OPTIMIZED
 const deleteGroup = async (group_id) => {
     try {
+        // Validate the group ID
+        if (!group_id) {
+            console.error('Invalid group ID provided for deletion.');
+            return { error: 'Invalid group ID' };
+        }
+
         // Delete all members associated with the group
         const { error: memberDeleteError } = await supabase
             .from('group_members')
@@ -465,12 +550,14 @@ const deleteGroup = async (group_id) => {
             return { error: 'Error deleting group members' };
         }
 
+        console.log(`All members of group ID ${group_id} deleted successfully.`);
+
         // Delete the group itself
         const { data: deletedGroup, error: groupDeleteError } = await supabase
             .from('groups')
             .delete()
             .eq('id', group_id)
-            .select('id')
+            .select('id, group_name, raid_id') // Include raid_id for cache invalidation
             .single();
 
         if (groupDeleteError || !deletedGroup) {
@@ -478,32 +565,39 @@ const deleteGroup = async (group_id) => {
             return { error: 'Group not found' };
         }
 
-        return { message: 'Group deleted successfully' };
+        console.log(`Group ID ${group_id} (${deletedGroup.group_name}) deleted successfully.`);
+
+        // Clear the groups cache for the associated raid
+        clearGroupsCache(deletedGroup.raid_id);
+        console.log(`Cache cleared for raid ID ${deletedGroup.raid_id}.`);
+
+        return { message: `Group "${deletedGroup.group_name}" deleted successfully` };
     } catch (error) {
         console.error('Unexpected error deleting group:', error);
         return { error: 'Unexpected server error' };
     }
 };
 
-// Get raids into dropdowns
+// Populate raid dropdown from Supabase Storage OPTIMIZED
 async function loadRaidsDropdown(raidSelect) {
     try {
-        const raids = await fetchRaids(); // Fetch raids from cache or storage
+        // Fetch raids from Supabase Storage using fetchFromStorage
+        const raids = await fetchFromStorage('raids.json');
 
         if (!raids || raids.length === 0) {
-            console.warn('No raids available to populate dropdown');
+            console.warn('No raids available to populate dropdown.');
             raidSelect.innerHTML = '<option value="" disabled>No raids available</option>';
             return;
         }
 
-        console.log('Populating raid dropdown with:', raids); // Debug log
+        console.log('Populating raid dropdown with:', raids);
 
         // Populate the dropdown
         raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>';
         raids.forEach(raid => {
             const option = document.createElement('option');
-            option.value = raid.id; // Ensure `id` matches the raid identifier
-            option.setAttribute('data-min-ilvl', raid.min_item_level);
+            option.value = raid.id; // Use raid ID as the value
+            option.setAttribute('data-min-ilvl', raid.min_item_level); // Attach min item level as an attribute
             option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
             raidSelect.appendChild(option);
         });
@@ -513,24 +607,38 @@ async function loadRaidsDropdown(raidSelect) {
     }
 }
 
-// Helper function to populate the raid dropdown
-function populateRaidDropdown(raidSelect, raids) {
-    raidSelect.innerHTML = '<option value="" disabled selected>Select Raid</option>';
-    raids.forEach(raid => {
+// Generic helper function to populate dropdowns OPTIMIZED
+function populateDropdown(dropdownElement, options, placeholder = 'Select an option') {
+    dropdownElement.innerHTML = `<option value="" disabled selected>${placeholder}</option>`;
+    options.forEach(optionData => {
         const option = document.createElement('option');
-        option.value = raid.id;
-        option.setAttribute('data-min-ilvl', raid.min_item_level);
-        option.textContent = `${raid.name} (Min IL: ${raid.min_item_level})`;
-        raidSelect.appendChild(option);
+        option.value = optionData.id;
+        if (optionData.dataAttributes) {
+            // Add additional attributes dynamically
+            Object.entries(optionData.dataAttributes).forEach(([key, value]) => {
+                option.setAttribute(key, value);
+            });
+        }
+        option.textContent = optionData.text;
+        dropdownElement.appendChild(option);
     });
 }
 
-
-// da fuck 2
+// Fetch groups for a specific raid with caching OPTIMIZED
 async function fetchGroupsForRaid(raidId) {
-    if (cache.groups.has(raidId)) return cache.groups.get(raidId);
+    if (!raidId) {
+        console.error('Invalid raid ID provided for fetching groups.');
+        return [];
+    }
+
+    // Check in-memory cache
+    if (cache.groups.has(raidId)) {
+        console.log(`Cache hit for groups in raid ID ${raidId}`);
+        return cache.groups.get(raidId);
+    }
 
     try {
+        // Fetch groups from Supabase
         const { data: groups, error } = await supabase
             .from('groups')
             .select('*')
@@ -541,7 +649,10 @@ async function fetchGroupsForRaid(raidId) {
             return [];
         }
 
+        // Cache the fetched groups
         cache.groups.set(raidId, groups);
+        console.log(`Groups fetched and cached for raid ID ${raidId}:`, groups);
+
         return groups;
     } catch (error) {
         console.error('Unexpected error fetching groups:', error);
@@ -549,10 +660,18 @@ async function fetchGroupsForRaid(raidId) {
     }
 }
 
-
-// Query to get players for add page
+// Fetch all players with caching OPTIMIZED
 const fetchAllPlayers = async () => {
+    const cacheKey = 'all-players';
+
+    // Check in-memory cache first
+    if (staticDataCache.has(cacheKey)) {
+        console.log('Cache hit for all players.');
+        return staticDataCache.get(cacheKey);
+    }
+
     try {
+        // Fetch players from Supabase
         const { data: players, error } = await supabase
             .from('players')
             .select('id, username')
@@ -563,6 +682,10 @@ const fetchAllPlayers = async () => {
             return { error: 'Error fetching players' };
         }
 
+        // Cache the fetched players in memory
+        staticDataCache.set(cacheKey, players);
+
+        console.log('Fetched and cached all players:', players);
         return players;
     } catch (error) {
         console.error('Unexpected error fetching players:', error);
@@ -570,8 +693,13 @@ const fetchAllPlayers = async () => {
     }
 };
 
-// Query to get characters of a specific player
+// Fetch characters of a specific player for a group with caching OPTIMIZED
 async function fetchCharactersForPlayer(playerId, groupId) {
+    if (!playerId) {
+        console.error('Player ID is required to fetch characters.');
+        return [];
+    }
+
     const cacheKey = `${playerId}-${groupId}`;
 
     // Check in-memory cache first
@@ -581,8 +709,8 @@ async function fetchCharactersForPlayer(playerId, groupId) {
     }
 
     try {
-        // Fetch from database
-        const { data, error } = await supabase
+        // Fetch characters from the database
+        const { data: characters, error } = await supabase
             .from('characters')
             .select(`
                 id,
@@ -597,112 +725,117 @@ async function fetchCharactersForPlayer(playerId, groupId) {
             return [];
         }
 
-        // Cache the results in memory and localStorage
-        cache.characters.set(cacheKey, data);
-        localStorage.setItem(`characters-${cacheKey}`, JSON.stringify(data));
+        // Cache the fetched characters in memory
+        cache.characters.set(cacheKey, characters);
 
-        return data;
+        console.log(`Fetched and cached characters for player ${playerId}, group ${groupId}:`, characters);
+        return characters;
     } catch (error) {
         console.error('Unexpected error fetching characters:', error);
         return [];
     }
 }
 
-// Query to create a new character
+// Query to create a new character OPTIMIZED
 const createCharacter = async (player_id, name, item_level, class_id) => {
+    // Validate required fields
     if (!player_id || !name || !item_level || !class_id) {
         console.error('All fields are required to add a character.');
         return { error: 'All fields are required to add a character.' };
     }
 
     try {
-        const { error } = await supabase
+        // Insert the new character into the database
+        const { data, error } = await supabase
             .from('characters')
-            .insert([{ player_id, name, item_level, class_id }]);
+            .insert([{ player_id, name, item_level, class_id }])
+            .select()
+            .single();
 
         if (error) {
             console.error('Error adding character:', error);
             return { error: 'Error adding character' };
         }
 
-        return { message: 'Character added successfully' };
+        console.log('Character added successfully:', data);
+
+        // Clear character cache for the associated player
+        clearCharactersCache(player_id);
+
+        return { message: 'Character added successfully', character: data };
     } catch (error) {
         console.error('Unexpected error adding character:', error);
         return { error: 'Unexpected server error' };
     }
 };
 
-// Query to delete a character
-const deleteCharacter = async (character_id) => {
+// Query to delete a character OPTIMIZED
+const deleteCharacter = async (character_id, player_id) => {
+    if (!character_id || !player_id) {
+        console.error('Character ID and Player ID are required to delete a character.');
+        return { error: 'Character ID and Player ID are required.' };
+    }
+
     try {
-        const { error } = await supabase
+        // Delete the character from the database
+        const { data, error } = await supabase
             .from('characters')
             .delete()
-            .eq('id', character_id);
+            .eq('id', character_id)
+            .select('id, name, player_id')
+            .single();
 
         if (error) {
             console.error('Error deleting character:', error);
             return { error: 'Error deleting character' };
         }
 
-        return { message: 'Character deleted successfully' };
+        console.log(`Character deleted successfully:`, data);
+
+        // Clear the character cache for the associated player
+        clearCharactersCache(player_id);
+
+        return { message: `Character "${data.name}" deleted successfully` };
     } catch (error) {
         console.error('Unexpected error deleting character:', error);
         return { error: 'Unexpected server error' };
     }
 };
 
-// Query to update a character
-const updateCharacter = async (character_id, name, item_level) => {
-    if (!name || !item_level) {
-        console.error('Name and item level are required');
-        return { error: 'Name and item level are required' };
+// Query to update a character OPTIMIZED
+const updateCharacter = async (character_id, player_id, name, item_level) => {
+    if (!character_id || !player_id || !name || !item_level) {
+        console.error('Character ID, Player ID, Name, and Item Level are required.');
+        return { error: 'Character ID, Player ID, Name, and Item Level are required.' };
     }
 
     try {
-        const { error } = await supabase
+        // Update the character in the database
+        const { data, error } = await supabase
             .from('characters')
             .update({ name, item_level })
-            .eq('id', character_id);
+            .eq('id', character_id)
+            .select('id, name, item_level, player_id')
+            .single();
 
         if (error) {
             console.error('Error updating character:', error);
             return { error: 'Error updating character' };
         }
 
-        return { message: 'Character updated successfully' };
+        console.log(`Character updated successfully:`, data);
+
+        // Clear the character cache for the associated player
+        clearCharactersCache(player_id);
+
+        return { message: `Character "${data.name}" updated successfully`, character: data };
     } catch (error) {
         console.error('Unexpected error updating character:', error);
         return { error: 'Unexpected server error' };
     }
 };
 
-// Query to get all characters
-const fetchAllCharacters = async () => {
-    try {
-        const { data: characters, error } = await supabase
-            .from('characters')
-            .select(`
-                id,
-                name,
-                item_level,
-                classes ( name )
-            `)
-            .order('name', { ascending: true });
-
-        if (error) {
-            console.error('Error fetching all characters:', error);
-            return { error: 'Error fetching all characters' };
-        }
-
-        return characters;
-    } catch (error) {
-        console.error('Unexpected error fetching all characters:', error);
-        return { error: 'Unexpected server error' };
-    }
-};
-
-// Function to populate characters in a dropdown SUPABASE
+// Function to populate characters in a dropdown SUPABASE OPTIMIZED THIS MIGHT BE A CUNT HERE YO
 async function populateCharacterDropdown(playerId, groupId, characterSelect) {
     if (!playerId || !groupId) {
         console.error('Player ID and Group ID are required');
@@ -712,6 +845,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
     }
 
     try {
+        // Fetch eligible characters from Supabase
         const { data: eligibleCharacters, error } = await supabase
             .from('eligible_characters')
             .select('*')
@@ -725,12 +859,20 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             return;
         }
 
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+        if (!eligibleCharacters || eligibleCharacters.length === 0) {
+            console.warn(`No eligible characters found for player ${playerId} in group ${groupId}`);
+            characterSelect.innerHTML = '<option value="" disabled>No eligible characters available</option>';
+            characterSelect.disabled = true;
+            return;
+        }
 
+        // Populate the dropdown
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
         eligibleCharacters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.character_id;
 
+            // Determine the character's status
             if (!character.is_eligible) {
                 option.disabled = true;
                 option.textContent = `${character.character_name} (${character.item_level}) - Ineligible`;
@@ -752,9 +894,17 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
     }
 }
 
-// Function to populate players in a dropdown SUPABASE
+// Function to populate players in a dropdown OPTIMIZED
 async function populatePlayerDropdown(groupId, playerSelect) {
+    if (!groupId) {
+        console.error('Group ID is required to populate player dropdown.');
+        playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
+        playerSelect.disabled = true;
+        return;
+    }
+
     try {
+        // Fetch eligible players for the group
         const { eligiblePlayers } = await fetchEligibleCharacters(null, groupId);
 
         if (!eligiblePlayers || eligiblePlayers.length === 0) {
@@ -764,19 +914,18 @@ async function populatePlayerDropdown(groupId, playerSelect) {
             return;
         }
 
-        playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
-        eligiblePlayers.forEach(player => {
-            const option = document.createElement('option');
-            option.value = player.id;
-            option.textContent = player.username;
+        console.log(`Populating player dropdown for group ${groupId} with players:`, eligiblePlayers);
 
-            if (player.isDisabled) {
-                option.disabled = true;
-                option.textContent += ' - Already Selected';
-            }
-
-            playerSelect.appendChild(option);
-        });
+        // Use the generic helper function to populate the dropdown
+        populateDropdown(
+            playerSelect,
+            eligiblePlayers.map(player => ({
+                id: player.id,
+                text: player.isDisabled ? `${player.username} - Already Selected` : player.username,
+                dataAttributes: { disabled: player.isDisabled ? 'true' : null },
+            })),
+            'Select Player'
+        );
 
         playerSelect.disabled = false;
     } catch (error) {
@@ -786,39 +935,18 @@ async function populatePlayerDropdown(groupId, playerSelect) {
     }
 }
 
-// And cache player
-function populatePlayerDropdownFromCache(players, playerSelect, preselectedPlayerId) {
-    playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
-
-    players.forEach(player => {
-        const option = document.createElement('option');
-        option.value = player.id;
-        option.textContent = player.username;
-
-        // Check if the player is already saved to this group
-        if (player.has_eligible_characters === false) {
-            option.disabled = true;
-            option.textContent += ' - Already in group';
-        }
-
-        playerSelect.appendChild(option);
-    });
-
-    if (preselectedPlayerId) {
-        playerSelect.value = preselectedPlayerId;
-    }
-
-    playerSelect.disabled = false;
-}
-
-// Function to create a new raid group
 let isCreatingGroup = false; // Prevent duplicate submissions
+// Function to create a new raid group OPTIMIZED
 async function createRaidGroup(raidId, minItemLevel) {
-    if (isCreatingGroup) return { error: 'A group creation is already in progress' };
+    if (isCreatingGroup) {
+        console.warn('A group creation is already in progress.');
+        return { error: 'A group creation is already in progress' };
+    }
     isCreatingGroup = true;
 
     try {
         if (!raidId || minItemLevel === null || minItemLevel === undefined) {
+            console.error('Raid ID and minimum item level are required.');
             return { error: 'Raid ID and minimum item level are required' };
         }
 
@@ -836,6 +964,7 @@ async function createRaidGroup(raidId, minItemLevel) {
         const nextGroupNumber = (existingGroups || 0) + 1;
         const groupName = `Group ${nextGroupNumber}`;
 
+        // Insert the new group into the database
         const { data: newGroup, error: insertError } = await supabase
             .from('groups')
             .insert([{ raid_id: raidId, group_name: groupName, min_item_level: minItemLevel }])
@@ -848,19 +977,22 @@ async function createRaidGroup(raidId, minItemLevel) {
         }
 
         console.log(`Group "${newGroup.group_name}" created successfully.`);
-        await loadExistingGroups(raidId); // Refresh groups
-        await disableAssignedCharacters(); // Ensure assigned characters are disabled
+
+        // Clear the groups cache and refresh the UI
+        clearGroupsCache(raidId);
+        await loadExistingGroups(raidId);
+        await disableAssignedCharacters(); // Ensure assigned characters are disabled across all groups
 
         return { group_name: newGroup.group_name };
     } catch (error) {
         console.error('Unexpected error creating group:', error);
         return { error: 'Unexpected error creating group' };
     } finally {
-        isCreatingGroup = false; // Reset flag
+        isCreatingGroup = false; // Reset the flag to allow further group creation
     }
 }
 
-// Function to delete a raid group
+// Function to delete a raid group OPTIMIZED
 async function deleteRaidGroup(groupId, raidId) {
     if (!groupId) {
         console.error('Group ID is required to delete a group.');
@@ -875,33 +1007,39 @@ async function deleteRaidGroup(groupId, raidId) {
             .eq('group_id', groupId);
 
         if (membersError) {
-            console.error('Error deleting group members:', membersError);
+            console.error(`Error deleting members for group ID ${groupId}:`, membersError);
             return { error: 'Error deleting group members' };
         }
 
+        console.log(`All members of group ID ${groupId} deleted successfully.`);
+
         // Delete the group itself
-        const { error: groupError } = await supabase
+        const { data: deletedGroup, error: groupError } = await supabase
             .from('groups')
             .delete()
-            .eq('id', groupId);
+            .eq('id', groupId)
+            .select('id, group_name')
+            .single();
 
-        if (groupError) {
-            console.error('Error deleting raid group:', groupError);
+        if (groupError || !deletedGroup) {
+            console.error(`Error deleting group ID ${groupId}:`, groupError || 'Group not found');
             return { error: 'Error deleting raid group' };
         }
 
-        console.log('Raid group and its members deleted successfully.');
+        console.log(`Raid group "${deletedGroup.group_name}" deleted successfully.`);
 
-        // Refresh groups after deletion
-        await loadExistingGroups(raidId); // Refresh the UI with the remaining groups
-        return { success: true };
+        // Clear cache and refresh UI
+        clearGroupsCache(raidId); // Invalidate the cache for the associated raid
+        await loadExistingGroups(raidId); // Refresh the UI with updated group data
+
+        return { success: true, message: `Group "${deletedGroup.group_name}" deleted successfully` };
     } catch (error) {
         console.error('Unexpected error deleting raid group:', error);
         return { error: 'Unexpected server error' };
     }
 }
 
-// Function to reset a group
+// Function to reset a group OPTIMIZED
 async function resetGroup(groupId) {
     if (!groupId) {
         console.error('Group ID is required to reset the group');
@@ -946,7 +1084,7 @@ async function resetGroup(groupId) {
     }
 }
 
-// Function to save group members and prevent duplicate character assignments
+// Function to save group members and prevent duplicate character assignments OPTIMIZED
 async function saveGroupMembers(groupId, members) {
     if (!groupId || !members || members.length === 0) {
         console.error('Group ID and valid members data are required');
@@ -1027,9 +1165,10 @@ async function saveGroupMembers(groupId, members) {
     }
 }
 
-// Function to load existing groups SUPABASE
+// Function to load existing groups SUPABASE OPTIMIZED
 async function loadExistingGroups(raidId = null) {
     try {
+        // Fetch groups with slots
         const groups = await fetchGroupsWithSlots(raidId);
 
         const groupsContainer = document.getElementById('groups-container');
@@ -1041,186 +1180,163 @@ async function loadExistingGroups(raidId = null) {
         }
 
         for (const group of groups) {
+            // Create group container
             const groupDiv = document.createElement('div');
             groupDiv.classList.add('raid-group');
             groupDiv.setAttribute('data-group-id', group.id);
-            groupDiv.setAttribute('data-raid-id', group.raid_id); // Add raid ID for context
+            groupDiv.setAttribute('data-raid-id', group.raid_id);
 
-            const groupHeader = document.createElement('div');
-            groupHeader.classList.add('d-flex', 'justify-content-between', 'align-items-center');
-
-            const headerText = document.createElement('h3');
-            headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
-
-            groupHeader.appendChild(headerText);
-
-            // Minimize button
-            const minimizeButton = document.createElement('button');
-            minimizeButton.textContent = '−';
-            minimizeButton.classList.add('btn', 'btn-secondary', 'btn-sm', 'ml-auto');
-            minimizeButton.onclick = () => {
-                const table = groupDiv.querySelector('.assignment-table');
-                table.style.display = table.style.display === 'none' ? 'table' : 'none';
-                minimizeButton.textContent = table.style.display === 'none' ? '+' : '−';
-            };
-
-            // Save button
-            const saveButton = document.createElement('button');
-            saveButton.textContent = 'Save';
-            saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
-            saveButton.onclick = async () => {
-                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
-                const members = fetchGroupMembers(groupDiv);
-                if (!groupId || !members.length) {
-                    alert('Please select valid players and characters before saving.');
-                    return;
-                }
-
-                const result = await saveGroupMembers(groupId, members);
-                if (result.error) {
-                    alert(`Error: ${result.error}`);
-                } else {
-                    console.log(result.message);
-                }
-
-                await updateGroupSlots(groupId, headerText);
-                await disableAssignedCharacters(); // Disable already assigned characters
-                await updatePlayerList(groupId, playerListContainer); // Update player list
-            };
-
-            // Clear button
-            const clearButton = document.createElement('button');
-            clearButton.textContent = 'Clear';
-            clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
-            clearButton.onclick = async () => {
-                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
-                await resetGroup(groupId);
-                await updateGroupSlots(groupId, headerText);
-                await disableAssignedCharacters(); // Disable already assigned characters
-                await updatePlayerList(groupId, playerListContainer); // Clear player list
-            };
-
-            // Delete button
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = 'X';
-            deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
-            deleteButton.onclick = async () => {
-                const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
-                const raidId = parseInt(groupDiv.getAttribute('data-raid-id'), 10);
-
-                if (!groupId || !raidId) {
-                    alert('Group ID or Raid ID is missing.');
-                    return;
-                }
-
-                await deleteRaidGroup(groupId, raidId);
-                await disableAssignedCharacters(); // Disable already assigned characters
-            };
-
-            // Append buttons to header
-            groupHeader.appendChild(minimizeButton);
-            groupHeader.appendChild(saveButton);
-            groupHeader.appendChild(clearButton);
-            groupHeader.appendChild(deleteButton);
-
+            // Create group header
+            const groupHeader = createGroupHeader(group, groupDiv);
             groupDiv.appendChild(groupHeader);
 
-            // Player list container (Below group name and slots info)
+            // Add player list container
             const playerListContainer = document.createElement('div');
             playerListContainer.classList.add('player-list', 'mt-2');
-            playerListContainer.textContent = 'Loading players...'; // Placeholder text while fetching data
-
+            playerListContainer.textContent = 'Loading players...';
             groupDiv.appendChild(playerListContainer);
 
-            const table = document.createElement('table');
-            table.classList.add('assignment-table');
-
-            // Add Party Headers
-            const partyHeaderRow = document.createElement('tr');
-            partyHeaderRow.innerHTML = `
-                <th colspan="3">Party 1</th>
-                <th colspan="3">Party 2</th>
-            `;
-            table.appendChild(partyHeaderRow);
-
-            // Add Roles for Players and Characters
-            const roleHeaderRow = document.createElement('tr');
-            roleHeaderRow.innerHTML = `
-                <th>Player</th>
-                <th>Character</th>
-                <th>Role</th>
-                <th>Player</th>
-                <th>Character</th>
-                <th>Role</th>
-            `;
-            table.appendChild(roleHeaderRow);
-
-            // Add Rows for Party 1 and Party 2
-            for (let i = 0; i < 4; i++) {
-                const row = document.createElement('tr');
-
-                row.innerHTML = `
-                    <td>
-                        <select class="player-select form-control">
-                            <option value="" disabled selected>Select Player</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select class="character-select form-control" disabled>
-                            <option value="" disabled selected>Select Character</option>
-                        </select>
-                    </td>
-                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
-                    <td>
-                        <select class="player-select form-control">
-                            <option value="" disabled selected>Select Player</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select class="character-select form-control" disabled>
-                            <option value="" disabled selected>Select Character</option>
-                        </select>
-                    </td>
-                    <td>${i < 3 ? 'DPS' : 'Support'}</td>
-                `;
-
-                table.appendChild(row);
-            }
-
+            // Create assignment table
+            const table = createAssignmentTable(group.id);
             groupDiv.appendChild(table);
+
             groupsContainer.appendChild(groupDiv);
 
-            // Populate Player Dropdowns
+            // Populate player dropdowns
             const playerSelects = groupDiv.querySelectorAll('.player-select');
             for (const select of playerSelects) {
                 await populatePlayerDropdown(group.id, select);
             }
 
-            // Populate Character Dropdowns
+            // Populate character dropdowns
             const characterSelects = groupDiv.querySelectorAll('.character-select');
             for (const select of characterSelects) {
-                select.innerHTML = '<option value="" disabled selected>Loading...</option>';
-                select.disabled = true;
                 await populateCharacterDropdown(null, group.id, select);
             }
 
-            // Update Player List
+            // Update player list and disable already assigned players/characters
             await updatePlayerList(group.id, playerListContainer);
-
-            // Disable already assigned players for this group
-            await disableAssignedPlayers(group.id);
-
-            // Disable already assigned characters across groups
-            await disableAssignedCharacters();
         }
+
+        // Disable already assigned characters across all groups
+        await disableAssignedCharacters();
     } catch (error) {
         console.error('Error loading groups:', error);
     }
 }
 
-// Function to dynamically update the player list
+// Function to create group header - might need to move to storage
+function createGroupHeader(group, groupDiv) {
+    const groupHeader = document.createElement('div');
+    groupHeader.classList.add('d-flex', 'justify-content-between', 'align-items-center');
+
+    const headerText = document.createElement('h3');
+    headerText.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
+    groupHeader.appendChild(headerText);
+
+    const minimizeButton = document.createElement('button');
+    minimizeButton.textContent = '−';
+    minimizeButton.classList.add('btn', 'btn-secondary', 'btn-sm', 'ml-auto');
+    minimizeButton.onclick = () => {
+        const table = groupDiv.querySelector('.assignment-table');
+        table.style.display = table.style.display === 'none' ? 'table' : 'none';
+        minimizeButton.textContent = table.style.display === 'none' ? '+' : '−';
+    };
+    groupHeader.appendChild(minimizeButton);
+
+    addGroupButtons(group, groupDiv, groupHeader);
+
+    return groupHeader;
+}
+
+// Function to add group buttons - might need to move to storage
+function addGroupButtons(group, groupDiv, groupHeader) {
+    const saveButton = document.createElement('button');
+    saveButton.textContent = 'Save';
+    saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
+    saveButton.onclick = async () => handleSaveGroup(group.id, groupDiv);
+    groupHeader.appendChild(saveButton);
+
+    const clearButton = document.createElement('button');
+    clearButton.textContent = 'Clear';
+    clearButton.classList.add('btn', 'btn-warning', 'btn-sm');
+    clearButton.onclick = async () => handleClearGroup(group.id, groupDiv);
+    groupHeader.appendChild(clearButton);
+
+    const deleteButton = document.createElement('button');
+    deleteButton.textContent = 'X';
+    deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
+    deleteButton.onclick = async () => handleDeleteGroup(group.id, group.raid_id);
+    groupHeader.appendChild(deleteButton);
+}
+// Function to create table - might need to move to storage
+function createAssignmentTable(groupId) {
+    const table = document.createElement('table');
+    table.classList.add('assignment-table');
+
+    // Add Party Headers
+    const partyHeaderRow = document.createElement('tr');
+    partyHeaderRow.innerHTML = `
+        <th colspan="3">Party 1</th>
+        <th colspan="3">Party 2</th>
+    `;
+    table.appendChild(partyHeaderRow);
+
+    // Add Roles for Players and Characters
+    const roleHeaderRow = document.createElement('tr');
+    roleHeaderRow.innerHTML = `
+        <th>Player</th>
+        <th>Character</th>
+        <th>Role</th>
+        <th>Player</th>
+        <th>Character</th>
+        <th>Role</th>
+    `;
+    table.appendChild(roleHeaderRow);
+
+    // Add Rows for Party 1 and Party 2
+    for (let i = 0; i < 4; i++) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <select class="player-select form-control">
+                    <option value="" disabled selected>Select Player</option>
+                </select>
+            </td>
+            <td>
+                <select class="character-select form-control" disabled>
+                    <option value="" disabled selected>Select Character</option>
+                </select>
+            </td>
+            <td>${i < 3 ? 'DPS' : 'Support'}</td>
+            <td>
+                <select class="player-select form-control">
+                    <option value="" disabled selected>Select Player</option>
+                </select>
+            </td>
+            <td>
+                <select class="character-select form-control" disabled>
+                    <option value="" disabled selected>Select Character</option>
+                </select>
+            </td>
+            <td>${i < 3 ? 'DPS' : 'Support'}</td>
+        `;
+        table.appendChild(row);
+    }
+
+    return table;
+}
+
+// Function to dynamically update the player list OPTIMIZED
 async function updatePlayerList(groupId, container) {
+    if (!groupId) {
+        console.error('Group ID is required to update the player list.');
+        container.textContent = 'Error: Invalid group ID.';
+        return;
+    }
+
     try {
+        // Fetch group members from the database
         const { data: members, error } = await supabase
             .from('group_members')
             .select(`
@@ -1229,243 +1345,412 @@ async function updatePlayerList(groupId, container) {
             `)
             .eq('group_id', groupId);
 
-        if (error || !members) {
-            console.error('Error fetching group members:', error);
+        if (error) {
+            console.error(`Error fetching group members for group ID ${groupId}:`, error);
+            container.textContent = 'Error fetching player list.';
+            return;
+        }
+
+        if (!members || members.length === 0) {
             container.textContent = 'No players added yet.';
             return;
         }
 
-        if (members.length === 0) {
-            container.textContent = 'No players added yet.';
-            return;
-        }
+        // Format the player list as: PlayerName(Classname, ItemLevel), ...
+        const playerList = members.map(member => {
+            const username = member.players?.username || 'Unknown Player';
+            const className = member.characters?.classes?.name || 'Unknown Class';
+            const itemLevel = member.characters?.item_level || 'N/A';
+            return `${username} (${className}, ${itemLevel})`;
+        });
 
-        // Format the list as: PlayerName(Classname, ItemLevel), ...
-        const playerList = members.map(member => 
-            `${member.players.username} (${member.characters.classes.name}, ${member.characters.item_level})`
-        );
-
+        // Update the container with the formatted list
         container.textContent = playerList.join(', ');
+        console.log(`Player list updated for group ID ${groupId}:`, playerList);
     } catch (error) {
-        console.error('Unexpected error updating player list:', error);
+        console.error(`Unexpected error updating player list for group ID ${groupId}:`, error);
         container.textContent = 'Error updating player list.';
     }
 }
 
-// Update slots count dynamically SUPABASE
+// Update slots count dynamically SUPABASE OPTIMIZED
 async function updateGroupSlots(groupId, headerTextElement) {
-    try {
-        const groups = await fetchGroupsWithSlots();
+    if (!groupId || !headerTextElement) {
+        console.error('Group ID and header text element are required to update group slots.');
+        return;
+    }
 
-        if (groups.error) {
-            console.error('Error fetching group slots:', groups.error);
+    try {
+        // Fetch the specific group data with slots
+        const { data: group, error } = await supabase
+            .from('groups')
+            .select(`
+                id,
+                group_name,
+                min_item_level,
+                raid_id,
+                raids (name),
+                group_members (id)
+            `)
+            .eq('id', groupId)
+            .single();
+
+        if (error) {
+            console.error(`Error fetching group details for group ID ${groupId}:`, error);
             return;
         }
 
-        const group = groups.find(g => g.id === groupId);
-
-        if (group) {
-            headerTextElement.textContent = `${group.raid_name} (Min IL: ${group.min_item_level}) - ${group.group_name} (${group.filled_slots}/${group.total_slots})`;
+        if (!group) {
+            console.warn(`Group ID ${groupId} not found.`);
+            return;
         }
+
+        // Calculate the filled and total slots
+        const filledSlots = group.group_members.length || 0;
+        const totalSlots = 8; // Assuming each group has 8 slots
+
+        // Update the header text element
+        headerTextElement.textContent = `${group.raids.name || 'Unknown Raid'} (Min IL: ${group.min_item_level}) - ${group.group_name} (${filledSlots}/${totalSlots})`;
+
+        console.log(`Group slots updated for group ID ${groupId}: ${filledSlots}/${totalSlots}`);
     } catch (error) {
-        console.error('Unexpected error updating group slots:', error);
+        console.error(`Unexpected error updating slots for group ID ${groupId}:`, error);
     }
 }
 
-// Function to load players to add players page SUPABASE
+// Function to load players to add players page SUPABASE OPTIMIZED
 async function loadPlayersForAddPage(playerSelect) {
-    try {
-        const players = await fetchAllPlayers();
+    if (!playerSelect) {
+        console.error('Player select element is required to load players.');
+        return;
+    }
 
-        if (!players.error) {
-            playerSelect.innerHTML = '<option value="" disabled selected>Select Player</option>';
-            players.forEach(player => {
-                const option = document.createElement('option');
-                option.value = player.id;
-                option.textContent = player.username;
-                playerSelect.appendChild(option);
-            });
-            playerSelect.disabled = false;
-        } else {
-            console.error('Error fetching players for add page:', players.error);
+    try {
+        // Fetch eligible players (all players in this context)
+        const { data: players, error } = await supabase
+            .from('players')
+            .select('id, username')
+            .order('username', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching players for add page:', error);
             playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
+            playerSelect.disabled = true;
+            return;
         }
+
+        if (!players || players.length === 0) {
+            console.warn('No players available to populate dropdown.');
+            playerSelect.innerHTML = '<option value="" disabled>No players available</option>';
+            playerSelect.disabled = true;
+            return;
+        }
+
+        console.log('Populating players dropdown for add page:', players);
+
+        // Use the generic dropdown helper to populate
+        populateDropdown(
+            playerSelect,
+            players.map(player => ({
+                id: player.id,
+                text: player.username,
+            })),
+            'Select Player'
+        );
+
+        playerSelect.disabled = false;
     } catch (error) {
         console.error('Unexpected error loading players for add page:', error);
         playerSelect.innerHTML = '<option value="" disabled>Error loading players</option>';
+        playerSelect.disabled = true;
     }
 }
 
-// Function to load classes to add players page SUPABASE
+// Function to load classes to add players page SUPABASE OPTIMIZED
 async function loadClassesForAddPage(classSelect) {
-    try {
-        const classes = await fetchAllClasses();
+    if (!classSelect) {
+        console.error('Class select element is required to load classes.');
+        return;
+    }
 
-        if (!classes.error) {
-            classSelect.innerHTML = '<option value="" disabled selected>Select Class</option>';
-            classes.forEach(characterClass => {
-                const option = document.createElement('option');
-                option.value = characterClass.id;
-                option.textContent = characterClass.name;
-                classSelect.appendChild(option);
-            });
-            classSelect.disabled = false;
-        } else {
-            console.error('Error fetching classes for add page:', classes.error);
-            classSelect.innerHTML = '<option value="" disabled>Error loading classes</option>';
+    try {
+        // Fetch classes from static-data bucket
+        const classes = await fetchFromStorage('classes.json');
+
+        if (!classes || classes.length === 0) {
+            console.warn('No classes available to populate dropdown.');
+            classSelect.innerHTML = '<option value="" disabled>No classes available</option>';
+            classSelect.disabled = true;
+            return;
         }
+
+        console.log('Populating classes dropdown for add page:', classes);
+
+        // Use the generic dropdown helper to populate
+        populateDropdown(
+            classSelect,
+            classes.map(characterClass => ({
+                id: characterClass.id,
+                text: characterClass.name,
+            })),
+            'Select Class'
+        );
+
+        classSelect.disabled = false;
     } catch (error) {
         console.error('Unexpected error loading classes for add page:', error);
         classSelect.innerHTML = '<option value="" disabled>Error loading classes</option>';
+        classSelect.disabled = true;
     }
 }
 
-// Function to load characters of a player in add players page SUPABASE
+// Function to load characters of a player in add players page SUPABASE OPTIMIZED
 async function loadCharactersForPlayer(playerId, characterSelect) {
     if (!playerId) {
+        console.error('Player ID is required to load characters.');
         characterSelect.innerHTML = '<option value="" disabled selected>Select Player First</option>';
         characterSelect.disabled = true;
         return;
     }
 
+    if (!characterSelect) {
+        console.error('Character select element is required to load characters.');
+        return;
+    }
+
     try {
+        // Fetch characters for the selected player
         const characters = await fetchCharactersForPlayer(playerId);
 
-        if (!characters.error) {
-            characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
-            characters.forEach(character => {
-                const option = document.createElement('option');
-                option.value = character.id;
-                option.textContent = `${character.name} (${character.classes.name}, IL: ${character.item_level})`;
-                characterSelect.appendChild(option);
-            });
-            characterSelect.disabled = false;
-        } else {
-            console.error('Error fetching characters for player:', characters.error);
-            characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+        if (!characters || characters.length === 0) {
+            console.warn(`No characters found for player ID ${playerId}.`);
+            characterSelect.innerHTML = '<option value="" disabled>No characters available</option>';
+            characterSelect.disabled = true;
+            return;
         }
+
+        console.log(`Populating characters dropdown for player ID ${playerId}:`, characters);
+
+        // Use the generic dropdown helper to populate
+        populateDropdown(
+            characterSelect,
+            characters.map(character => ({
+                id: character.id,
+                text: `${character.name} (${character.classes.name}, IL: ${character.item_level})`,
+            })),
+            'Select Character'
+        );
+
+        characterSelect.disabled = false;
     } catch (error) {
-        console.error('Unexpected error loading characters for player:', error);
+        console.error(`Unexpected error loading characters for player ID ${playerId}:`, error);
         characterSelect.innerHTML = '<option value="" disabled>Error loading characters</option>';
+        characterSelect.disabled = true;
     }
 }
 
-// Function to add a new player in add players page SUPABASE
+// Function to add a new player in add players page SUPABASE OPTIMIZED
 async function addNewPlayer() {
     const usernameInput = document.getElementById('username-input');
     if (!usernameInput) {
-        console.error('Username input field not found');
+        console.error('Username input field not found.');
         alert('Error: Username input field is missing!');
         return;
     }
 
     const username = usernameInput.value.trim();
-
     if (!username) {
         alert('Please enter a valid username.');
         return;
     }
 
     try {
-        const result = await addPlayer(username);
+        // Add player to the database
+        const { data, error } = await supabase
+            .from('players')
+            .insert([{ username }])
+            .select()
+            .single();
 
-        if (result.error) {
-            console.error('Error adding player:', result.error);
-            alert(`Error: ${result.error}`);
-        } else {
-            alert('Player added successfully!');
-            usernameInput.value = ''; // Clear the input field
-            // Optionally refresh the player list
+        if (error) {
+            console.error('Error adding player:', error);
+            alert('Error adding player.');
+            return;
         }
+
+        console.log(`Player "${username}" added successfully:`, data);
+
+        // Clear the input field
+        usernameInput.value = '';
+
+        // Optionally refresh the player dropdown
+        const playerSelect = document.getElementById('player-select');
+        if (playerSelect) {
+            await loadPlayersForAddPage(playerSelect); // Refresh the dropdown
+        }
+
+        alert('Player added successfully!');
     } catch (error) {
         console.error('Unexpected error adding player:', error);
         alert('Unexpected error adding player.');
     }
 }
 
-// Function to add a new character to the selected player in add players page SUPABASE
+// Function to add a new character to the selected player in add players page SUPABASE OPTIMIZED
 async function addNewCharacter(playerSelect, characterNameInput, itemLevelInput, classSelect) {
-    const playerId = playerSelect.value;
-    const name = characterNameInput.value.trim();
-    const itemLevel = parseInt(itemLevelInput.value, 10);
-    const classId = classSelect.value;
+    const playerId = playerSelect?.value;
+    const name = characterNameInput?.value.trim();
+    const itemLevel = parseInt(itemLevelInput?.value, 10);
+    const classId = classSelect?.value;
 
-    if (!playerId || !name || !itemLevel || !classId) {
+    if (!playerId || !name || isNaN(itemLevel) || !classId) {
         alert('All fields are required to add a character.');
         return;
     }
 
     try {
-        const result = await createCharacter(playerId, name, itemLevel, classId);
+        // Add the character to the database
+        const { data, error } = await supabase
+            .from('characters')
+            .insert([{ player_id: playerId, name, item_level: itemLevel, class_id: classId }])
+            .select()
+            .single();
 
-        if (result.error) {
-            console.error('Error adding character:', result.error);
-            alert(`Error: ${result.error}`);
-        } else {
-            alert('Character added successfully!');
-            characterNameInput.value = ''; // Clear the character name input
-            itemLevelInput.value = ''; // Clear the item level input
-            classSelect.value = ''; // Reset the class select dropdown
-
-            clearCharactersCache(playerId); // Clear the character cache for this player
+        if (error) {
+            console.error('Error adding character:', error);
+            alert('Error adding character.');
+            return;
         }
+
+        console.log(`Character "${name}" added successfully for Player ID ${playerId}:`, data);
+
+        // Clear input fields and reset dropdowns
+        characterNameInput.value = '';
+        itemLevelInput.value = '';
+        classSelect.value = '';
+        playerSelect.value = playerId; // Retain the selected player in the dropdown
+
+        // Clear the character cache and refresh the dropdown
+        clearCharactersCache(playerId);
+        const characterSelect = document.getElementById('character-select');
+        if (characterSelect) {
+            await loadCharactersForPlayer(playerId, characterSelect); // Refresh the dropdown
+        }
+
+        alert('Character added successfully!');
     } catch (error) {
         console.error('Unexpected error adding character:', error);
         alert('Unexpected error adding character.');
     }
 }
 
-// Function to update character in add players page SUPABASE
+// Function to update character in add players page SUPABASE OPTIMIZED
 async function updateCharacterDetails(characterSelect, characterNameInput, itemLevelInput) {
-    const characterId = characterSelect.value;
-    const name = characterNameInput.value.trim();
-    const itemLevel = parseInt(itemLevelInput.value, 10);
+    const characterId = characterSelect?.value;
+    const name = characterNameInput?.value.trim();
+    const itemLevel = parseInt(itemLevelInput?.value, 10);
 
-    if (!characterId || !name || !itemLevel) {
+    if (!characterId || !name || isNaN(itemLevel)) {
         alert('All fields are required to update the character.');
         return;
     }
 
     try {
-        const result = await updateCharacter(characterId, name, itemLevel);
+        // Update the character in the database
+        const { error } = await supabase
+            .from('characters')
+            .update({ name, item_level: itemLevel })
+            .eq('id', characterId);
 
-        if (result.error) {
-            console.error('Error updating character:', result.error);
-            alert(`Error: ${result.error}`);
-        } else {
-            alert('Character updated successfully!');
-            const playerId = characterSelect.dataset.playerId; // Ensure playerId is set in the dropdown
-            clearCharactersCache(playerId); // Clear the character cache for this player
+        if (error) {
+            console.error('Error updating character:', error);
+            alert('Error updating character.');
+            return;
         }
+
+        console.log(`Character ID ${characterId} updated successfully with Name: "${name}", IL: ${itemLevel}.`);
+
+        // Clear character cache and refresh the dropdown
+        const playerId = characterSelect.dataset.playerId || characterSelect.getAttribute('data-player-id');
+        if (playerId) {
+            clearCharactersCache(playerId);
+            const characterDropdown = document.getElementById('character-select');
+            if (characterDropdown) {
+                await loadCharactersForPlayer(playerId, characterDropdown);
+            }
+        }
+
+        alert('Character updated successfully!');
     } catch (error) {
         console.error('Unexpected error updating character:', error);
         alert('Unexpected error updating character.');
     }
 }
-// Function to update group UI dynamically
+
+// Function to update group UI dynamically OPTIMIZED
 async function updateGroupUI(groupId) {
-    const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
-    if (!groupElement) return;
-
-    const members = await fetchGroupMembers(groupId); // Fetch updated members
-    const memberList = groupElement.querySelector('.member-list');
-
-    if (members.length === 0) {
-        memberList.innerHTML = '<p>No members yet.</p>';
+    if (!groupId) {
+        console.error('Group ID is required to update the group UI.');
         return;
     }
 
-    memberList.innerHTML = ''; // Clear the list
-    members.forEach(member => {
-        const memberItem = document.createElement('div');
-        memberItem.textContent = `${member.player_name} (${member.character_name})`;
-        memberList.appendChild(memberItem);
-    });
+    const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+    if (!groupElement) {
+        console.warn(`Group element for group ID ${groupId} not found in the UI.`);
+        return;
+    }
+
+    try {
+        // Fetch updated group members
+        const { data: members, error } = await supabase
+            .from('group_members')
+            .select(`
+                players (username),
+                characters (name, item_level, classes (name))
+            `)
+            .eq('group_id', groupId);
+
+        if (error) {
+            console.error(`Error fetching members for group ID ${groupId}:`, error);
+            const memberList = groupElement.querySelector('.member-list');
+            if (memberList) memberList.innerHTML = '<p>Error loading members.</p>';
+            return;
+        }
+
+        const memberList = groupElement.querySelector('.member-list');
+        if (!members || members.length === 0) {
+            if (memberList) memberList.innerHTML = '<p>No members yet.</p>';
+            return;
+        }
+
+        console.log(`Updating group UI for group ID ${groupId} with members:`, members);
+
+        // Clear the member list and repopulate it
+        if (memberList) {
+            memberList.innerHTML = '';
+            members.forEach(member => {
+                const memberItem = document.createElement('div');
+                const username = member.players?.username || 'Unknown Player';
+                const characterName = member.characters?.name || 'Unknown Character';
+                const className = member.characters?.classes?.name || 'Unknown Class';
+                const itemLevel = member.characters?.item_level || 'N/A';
+
+                memberItem.textContent = `${username} (${characterName}, ${className}, IL: ${itemLevel})`;
+                memberList.appendChild(memberItem);
+            });
+        }
+
+        // Optional: Update any other UI elements related to the group
+    } catch (error) {
+        console.error(`Unexpected error updating group UI for group ID ${groupId}:`, error);
+        const memberList = groupElement.querySelector('.member-list');
+        if (memberList) memberList.innerHTML = '<p>Error loading members.</p>';
+    }
 }
 
-// Function to delete character in add players page SUPABASE
+// Function to delete character in add players page SUPABASE OPTIMIZED
 async function deleteCharacterFromPlayer(characterSelect) {
-    const characterId = characterSelect.value;
+    const characterId = characterSelect?.value;
 
     if (!characterId) {
         alert('Please select a character to delete.');
@@ -1477,24 +1762,38 @@ async function deleteCharacterFromPlayer(characterSelect) {
     }
 
     try {
-        const result = await deleteCharacter(characterId);
+        // Delete the character from the database
+        const { error } = await supabase
+            .from('characters')
+            .delete()
+            .eq('id', characterId);
 
-        if (result.error) {
-            console.error('Error deleting character:', result.error);
-            alert(`Error: ${result.error}`);
-        } else {
-            alert('Character deleted successfully!');
-            characterSelect.value = ''; // Reset the character select dropdown
-            const playerId = characterSelect.dataset.playerId; // Ensure playerId is set in the dropdown
-            clearCharactersCache(playerId); // Clear the character cache for this player
+        if (error) {
+            console.error(`Error deleting character ID ${characterId}:`, error);
+            alert('Error deleting character.');
+            return;
         }
+
+        console.log(`Character ID ${characterId} deleted successfully.`);
+
+        // Clear character select and refresh the dropdown
+        const playerId = characterSelect.dataset.playerId || characterSelect.getAttribute('data-player-id');
+        if (playerId) {
+            clearCharactersCache(playerId); // Clear the cache for this player
+            const characterDropdown = document.getElementById('character-select');
+            if (characterDropdown) {
+                await loadCharactersForPlayer(playerId, characterDropdown); // Refresh the dropdown
+            }
+        }
+
+        alert('Character deleted successfully!');
     } catch (error) {
-        console.error('Unexpected error deleting character:', error);
+        console.error(`Unexpected error deleting character ID ${characterId}:`, error);
         alert('Unexpected error deleting character.');
     }
 }
 
-// Initialize on DOM content loaded
+// Initialize on DOM content loaded OPTIMIZED
 document.addEventListener('DOMContentLoaded', () => {
     // Async wrapper for initialization logic
     (async function initialize() {
@@ -1522,8 +1821,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const raidSelect = document.getElementById('raid-select'); // For the Raid Organizer page
         const playerForm = document.getElementById('player-form'); // For the Add Player / Character page
 
+        // Raid Organizer Page
         if (raidSelect) {
-            // Raid Organizer Page
             console.log('Initializing raid dropdown...');
             await loadRaidsDropdown(raidSelect); // Load raids from Supabase Storage
             await loadExistingGroups(); // Load groups initially
@@ -1538,16 +1837,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Create a new raid group
             document.getElementById('create-raid-btn')?.addEventListener('click', async (event) => {
                 event.preventDefault();
-                const createButton = event.target; // Reference the clicked button
+                const createButton = event.target;
                 const selectedOption = raidSelect.options[raidSelect.selectedIndex];
 
-                // Disable the button to prevent duplicate clicks
-                createButton.disabled = true;
+                createButton.disabled = true; // Prevent duplicate submissions
 
                 if (!selectedOption || !selectedOption.value) {
-                    console.error('Please select a raid to create a group.');
                     alert('Please select a raid to create a group.');
-                    createButton.disabled = false; // Re-enable the button
+                    createButton.disabled = false;
                     return;
                 }
 
@@ -1555,15 +1852,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const minItemLevel = selectedOption.getAttribute('data-min-ilvl');
 
                 if (!raidId || !minItemLevel) {
-                    console.error('Invalid raid selection or missing minimum item level.');
                     alert('Invalid raid selection or missing minimum item level.');
-                    createButton.disabled = false; // Re-enable the button
+                    createButton.disabled = false;
                     return;
                 }
 
                 try {
                     createButton.textContent = 'Creating...';
-
                     const result = await createRaidGroup(raidId, parseInt(minItemLevel, 10));
 
                     if (result.error) {
@@ -1574,7 +1869,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     console.error('Unexpected error creating group:', error);
                 } finally {
-                    // Re-enable the button and reset its text
                     createButton.disabled = false;
                     createButton.textContent = 'Create Raid Group';
                 }
@@ -1594,15 +1888,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 .subscribe();
         }
 
+        // Add Player / Character Page
         if (playerForm) {
-            // Add Player / Character Page
             const playerSelect = document.getElementById('player-select');
             const classSelect = document.getElementById('class-select');
             const characterSelect = document.getElementById('character-select');
 
             console.log('Initializing player form...');
-            await loadClassesDropdown(classSelect); // Load classes from Supabase Storage
-            await loadPlayersForAddPage(playerSelect); // Populate players from cache or fetch
+            await loadClassesForAddPage(classSelect); // Load classes from Supabase Storage
+            await loadPlayersForAddPage(playerSelect); // Populate players
 
             // Load characters for selected player
             playerSelect?.addEventListener('change', async (event) => {
@@ -1617,7 +1911,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 await addNewPlayer(usernameInput);
-                clearPlayersCache(); // Clear player cache
                 await loadPlayersForAddPage(playerSelect); // Refresh player dropdown
             });
 
@@ -1630,7 +1923,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 await addNewCharacter(playerSelect, characterNameInput, itemLevelInput, classSelect);
-                clearCharactersCache(playerSelect.value); // Clear character cache for this player
                 await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
             });
 
@@ -1643,7 +1935,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 await updateCharacterDetails(characterSelect, characterNameInput, itemLevelInput);
-                clearCharactersCache(playerSelect.value); // Clear character cache for this player
                 await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
             });
 
@@ -1654,7 +1945,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 await deleteCharacterFromPlayer(characterSelect);
-                clearCharactersCache(playerSelect.value); // Clear character cache for this player
                 await loadCharactersForPlayer(playerSelect.value, characterSelect); // Refresh character dropdown
             });
 
@@ -1687,15 +1977,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Set loading state
             characterSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
             characterSelect.disabled = true;
 
             try {
-                // Populate the character dropdown
                 await populateCharacterDropdown(playerId, groupId, characterSelect);
-
-                // Enable the dropdown after fetching
                 characterSelect.disabled = false;
             } catch (error) {
                 console.error('Error fetching characters for player selection:', error);
