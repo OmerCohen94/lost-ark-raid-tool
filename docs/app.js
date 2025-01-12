@@ -418,7 +418,7 @@ function fetchGroupMembers(groupDiv) {
 
     if (isNaN(groupId)) {
         console.error('Invalid group ID:', groupDiv);
-        return []; // Return an empty array instead of undefined
+        return []; // Return an empty array instead of an invalid value
     }
 
     const rows = groupDiv.querySelectorAll('.assignment-table tr');
@@ -428,7 +428,7 @@ function fetchGroupMembers(groupDiv) {
         const playerSelect = row.querySelector('.player-select');
         const characterSelect = row.querySelector('.character-select');
 
-        if (playerSelect && characterSelect && playerSelect.value && characterSelect.value) {
+        if (playerSelect?.value && characterSelect?.value) {
             members.push({
                 player_id: parseInt(playerSelect.value, 10),
                 character_id: parseInt(characterSelect.value, 10),
@@ -436,8 +436,10 @@ function fetchGroupMembers(groupDiv) {
         }
     });
 
-    return members; // Ensure an array is always returned
+    console.log('Fetched group members:', members); // Debug log for members
+    return members;
 }
+
 
 // Query to save members in a specific group OPTIMIZED
 const updateGroupMembers = async (group_id, members) => {
@@ -1224,12 +1226,33 @@ function createGroupHeader(group, groupDiv) {
     return groupHeader;
 }
 
-// Function to add group buttons - might need to move to storage
+// Function to add group buttons MIGHT NEED TO MOVE TO STORAGE
 function addGroupButtons(group, groupDiv, groupHeader) {
     const saveButton = document.createElement('button');
     saveButton.textContent = 'Save';
     saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
-    saveButton.onclick = async () => saveGroupMembers(group.id, groupDiv);
+    saveButton.onclick = async () => {
+        const members = fetchGroupMembers(groupDiv); // Fetch members dynamically
+        console.log('Saving group members:', { groupId: group.id, members }); // Debug log
+
+        if (!group.id || !Array.isArray(members) || members.length === 0) {
+            alert('Please select valid players and characters before saving.');
+            return;
+        }
+
+        try {
+            const result = await saveGroupMembers(group.id, members);
+
+            if (result.error) {
+                alert(`Error: ${result.error}`);
+            } else {
+                console.log(result.message);
+            }
+        } catch (error) {
+            console.error('Error saving group members:', error);
+            alert('Unexpected error saving group members.');
+        }
+    };
     groupHeader.appendChild(saveButton);
 
     const clearButton = document.createElement('button');
@@ -1244,6 +1267,7 @@ function addGroupButtons(group, groupDiv, groupHeader) {
     deleteButton.onclick = async () => deleteGroup(group.id, group.raid_id);
     groupHeader.appendChild(deleteButton);
 }
+
 // Function to create table - might need to move to storage
 function createAssignmentTable(groupId) {
     const table = document.createElement('table');
