@@ -725,18 +725,9 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             return;
         }
 
-        // Remove duplicate entries from eligible characters
-        const uniqueCharacters = eligibleCharacters.reduce((acc, char) => {
-            if (!acc.some(item => item.character_id === char.character_id)) {
-                acc.push(char);
-            }
-            return acc;
-        }, []);
-
-        // Reset dropdown
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
 
-        uniqueCharacters.forEach(character => {
+        eligibleCharacters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.character_id;
 
@@ -745,7 +736,7 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
                 option.textContent = `${character.character_name} (${character.item_level}) - Ineligible`;
             } else if (character.is_assigned) {
                 option.disabled = true;
-                option.textContent = `${character.character_name} (${character.item_level}) - Already in group`;
+                option.textContent = `${character.character_name} (${character.item_level}) - Already Assigned`;
             } else {
                 option.textContent = `${character.character_name} (${character.item_level})`;
             }
@@ -1221,7 +1212,6 @@ async function loadExistingGroups(raidId = null) {
 
             // Disable already assigned characters across groups
             await disableAssignedCharacters();
-
         }
     } catch (error) {
         console.error('Error loading groups:', error);
