@@ -1157,7 +1157,7 @@ async function saveGroupMembers(groupId, members) {
     }
 }
 
-// Function to load existing groups SUPABASE OPTIMIZED
+// Function to load existing groups SUPABASE OPTIMIZED THIS FUNCTION IS A FUCKING BITCH AYO
 async function loadExistingGroups(raidId = null) {
     try {
         // Fetch groups with slots
@@ -1200,22 +1200,24 @@ async function loadExistingGroups(raidId = null) {
                 await populatePlayerDropdown(group.id, select);
             }
 
-            // Populate Character Dropdowns
+            // Populate character dropdowns
             const characterSelects = groupDiv.querySelectorAll('.character-select');
             for (const select of characterSelects) {
-            const playerSelect = select.closest('td')?.previousElementSibling?.querySelector('.player-select');
-            const playerId = playerSelect?.value;
+                const playerSelect = select.closest('td')?.previousElementSibling?.querySelector('.player-select');
+                const playerId = playerSelect?.value;
                 if (playerId) {
                     await populateCharacterDropdown(playerId, group.id, select);
-                        } else {
-                            select.innerHTML = '<option value="" disabled selected>Select Player First</option>';
-                            select.disabled = true;
-                        }
+                } else {
+                    select.innerHTML = '<option value="" disabled selected>Select Player First</option>';
+                    select.disabled = true;
+                }
             }
 
-
-            // Update player list and disable already assigned players/characters
+            // Update player list
             await updatePlayerList(group.id, playerListContainer);
+
+            // Disable already assigned players for this group
+            await disableAssignedPlayers(group.id);
         }
 
         // Disable already assigned characters across all groups
