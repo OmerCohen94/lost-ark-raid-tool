@@ -412,43 +412,31 @@ async function fetchPlayersForGroup(groupId) {
     }
 }
 
-// Function to fetch group members from the UI OPTIMIZED
+// Function to fetch group members
 function fetchGroupMembers(groupDiv) {
     const groupId = parseInt(groupDiv.getAttribute('data-group-id'), 10);
 
     if (isNaN(groupId)) {
         console.error('Invalid group ID:', groupDiv);
-        return [];
+        return []; // Return an empty array instead of undefined
     }
 
     const rows = groupDiv.querySelectorAll('.assignment-table tr');
     const members = [];
 
-    rows.forEach((row, index) => {
+    rows.forEach(row => {
         const playerSelect = row.querySelector('.player-select');
         const characterSelect = row.querySelector('.character-select');
 
-        if (playerSelect && characterSelect) {
-            const playerId = parseInt(playerSelect.value, 10);
-            const characterId = parseInt(characterSelect.value, 10);
-
-            if (!isNaN(playerId) && !isNaN(characterId)) {
-                members.push({
-                    player_id: playerId,
-                    character_id: characterId
-                });
-            } else {
-                console.warn(
-                    `Invalid selection in row ${index + 1}: Player ID or Character ID missing or invalid.`
-                );
-            }
-        } else {
-            console.warn(`Missing player or character dropdown in row ${index + 1}`);
+        if (playerSelect && characterSelect && playerSelect.value && characterSelect.value) {
+            members.push({
+                player_id: parseInt(playerSelect.value, 10),
+                character_id: parseInt(characterSelect.value, 10),
+            });
         }
     });
 
-    console.log(`Fetched members for group ID ${groupId}:`, members);
-    return members;
+    return members; // Ensure an array is always returned
 }
 
 // Query to save members in a specific group OPTIMIZED
@@ -1076,9 +1064,9 @@ async function resetGroup(groupId) {
     }
 }
 
-// Function to save group members and prevent duplicate character assignments OPTIMIZED
+// Function to save group members and prevent duplicate character assignments
 async function saveGroupMembers(groupId, members) {
-    if (!groupId || !members || members.length === 0) {
+    if (!groupId || !Array.isArray(members) || members.length === 0) {
         console.error('Group ID and valid members data are required');
         return { error: 'Group ID and valid members data are required' };
     }
@@ -1091,21 +1079,14 @@ async function saveGroupMembers(groupId, members) {
             .eq('id', groupId)
             .single();
 
-        if (groupError) {
+        if (groupError || !group) {
             console.error('Error fetching group details:', groupError);
             return { error: 'Error fetching group details' };
-        }
-
-        if (!group) {
-            console.error('Group not found.');
-            return { error: 'Group not found' };
         }
 
         const raidId = group.raid_id;
 
         // Validate that no character is already assigned to another group in the same raid
-        const assignedCharacterIds = new Set();
-
         for (const member of members) {
             const { data: conflicts, error: conflictError } = await supabase
                 .from('group_members')
@@ -1120,14 +1101,8 @@ async function saveGroupMembers(groupId, members) {
             }
 
             if (conflicts && conflicts.length > 0) {
-                assignedCharacterIds.add(member.character_id);
                 return { error: `Character is already assigned to ${conflicts[0].groups.group_name} in this raid.` };
             }
-        }
-
-        if (assignedCharacterIds.size > 0) {
-            console.warn('Some characters are already assigned and cannot be added:', [...assignedCharacterIds]);
-            return { error: 'Some characters are already assigned and cannot be added to this group.' };
         }
 
         // Add group_id to each member before upserting
