@@ -131,12 +131,7 @@ async function disableAssignedPlayers(groupId) {
             return;
         }
 
-        if (!assignedPlayers || assignedPlayers.length === 0) {
-            console.log(`No assigned players found for group ID ${groupId}.`);
-            return;
-        }
-
-        const assignedPlayerIds = new Set(assignedPlayers.map(p => p.player_id)); // Use Set to avoid duplicates
+        const assignedPlayerIds = new Set(assignedPlayers?.map(p => p.player_id)); // Use Set to avoid duplicates
 
         // Locate the relevant group element
         const groupElement = document.querySelector(`.raid-group[data-group-id="${groupId}"]`);
@@ -145,20 +140,23 @@ async function disableAssignedPlayers(groupId) {
             return;
         }
 
-        // Disable assigned players in the group's player dropdowns
-        const playerOptions = groupElement.querySelectorAll('.player-select option');
-        playerOptions.forEach(option => {
-            const playerId = parseInt(option.value, 10);
-            if (assignedPlayerIds.has(playerId)) {
-                option.disabled = true;
-                option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
-            } else {
-                option.disabled = false; // Re-enable if the player is no longer assigned
-                option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned" if present
-            }
+        // Disable assigned players only in the current group's dropdowns
+        const playerSelects = groupElement.querySelectorAll('.player-select');
+        playerSelects.forEach(playerSelect => {
+            const options = playerSelect.querySelectorAll('option');
+            options.forEach(option => {
+                const playerId = parseInt(option.value, 10);
+                if (assignedPlayerIds.has(playerId)) {
+                    option.disabled = true;
+                    option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
+                } else {
+                    option.disabled = false;
+                    option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned"
+                }
+            });
         });
 
-        console.log(`Updated player dropdowns for group ID ${groupId}.`);
+        console.log(`Player dropdowns updated for group ID ${groupId}`);
     } catch (error) {
         console.error('Error disabling assigned players:', error);
     }
