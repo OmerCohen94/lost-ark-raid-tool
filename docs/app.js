@@ -836,14 +836,14 @@ const updateCharacter = async (character_id, player_id, name, item_level) => {
 // Function to populate characters in a dropdown SUPABASE OPTIMIZED THIS MIGHT BE A CUNT HERE YO
 async function populateCharacterDropdown(playerId, groupId, characterSelect) {
     if (!playerId || !groupId) {
-        console.error('Player ID and Group ID are required');
-        characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
+        console.warn('Player ID and Group ID are required to populate the character dropdown.');
+        characterSelect.innerHTML = '<option value="" disabled selected>Select Player First</option>';
         characterSelect.disabled = true;
         return;
     }
 
     try {
-        // Fetch eligible characters from Supabase
+        // Fetch eligible characters for the player and group
         const { data: eligibleCharacters, error } = await supabase
             .from('eligible_characters')
             .select('*')
@@ -857,20 +857,12 @@ async function populateCharacterDropdown(playerId, groupId, characterSelect) {
             return;
         }
 
-        if (!eligibleCharacters || eligibleCharacters.length === 0) {
-            console.warn(`No eligible characters found for player ${playerId} in group ${groupId}`);
-            characterSelect.innerHTML = '<option value="" disabled>No eligible characters available</option>';
-            characterSelect.disabled = true;
-            return;
-        }
-
-        // Populate the dropdown
+        // Populate the dropdown with eligible characters
         characterSelect.innerHTML = '<option value="" disabled selected>Select Character</option>';
         eligibleCharacters.forEach(character => {
             const option = document.createElement('option');
             option.value = character.character_id;
 
-            // Determine the character's status
             if (!character.is_eligible) {
                 option.disabled = true;
                 option.textContent = `${character.character_name} (${character.item_level}) - Ineligible`;
@@ -1206,11 +1198,19 @@ async function loadExistingGroups(raidId = null) {
                 await populatePlayerDropdown(group.id, select);
             }
 
-            // Populate character dropdowns
+            // Populate Character Dropdowns
             const characterSelects = groupDiv.querySelectorAll('.character-select');
             for (const select of characterSelects) {
-                await populateCharacterDropdown(null, group.id, select);
+            const playerSelect = select.closest('td')?.previousElementSibling?.querySelector('.player-select');
+            const playerId = playerSelect?.value;
+                if (playerId) {
+                    await populateCharacterDropdown(playerId, group.id, select);
+                        } else {
+                            select.innerHTML = '<option value="" disabled selected>Select Player First</option>';
+                            select.disabled = true;
+                        }
             }
+
 
             // Update player list and disable already assigned players/characters
             await updatePlayerList(group.id, playerListContainer);
