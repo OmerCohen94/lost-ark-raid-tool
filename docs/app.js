@@ -1256,7 +1256,7 @@ function addGroupButtons(group, groupDiv, groupHeader) {
     const saveButton = document.createElement('button');
     saveButton.textContent = 'Save';
     saveButton.classList.add('btn', 'btn-primary', 'btn-sm');
-    saveButton.onclick = async () => SaveGroupMembers(group.id, groupDiv);
+    saveButton.onclick = async () => saveGroupMembers(group.id, groupDiv);
     groupHeader.appendChild(saveButton);
 
     const clearButton = document.createElement('button');
