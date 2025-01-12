@@ -1081,7 +1081,7 @@ async function saveGroupMembers(groupId, members) {
             .eq('id', groupId)
             .single();
 
-        if (groupError) {
+        if (groupError || !group) {
             console.error('Error fetching group details:', groupError);
             return { error: 'Error fetching group details' };
         }
@@ -1123,7 +1123,28 @@ async function saveGroupMembers(groupId, members) {
         }
 
         console.log('Group members saved successfully');
-        await disableAssignedCharacters(); // Update character dropdowns
+
+        // Refresh player and character dropdowns dynamically
+        const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
+        if (groupElement) {
+            const playerSelects = groupElement.querySelectorAll('.player-select');
+            for (const select of playerSelects) {
+                await populatePlayerDropdown(groupId, select);
+            }
+
+            const characterSelects = groupElement.querySelectorAll('.character-select');
+            for (const select of characterSelects) {
+                const playerSelect = select.closest('td')?.previousElementSibling?.querySelector('.player-select');
+                const playerId = playerSelect?.value;
+                if (playerId) {
+                    await populateCharacterDropdown(playerId, groupId, select);
+                }
+            }
+        }
+
+        // Disable already assigned players and characters across groups
+        await disableAssignedPlayers(groupId);
+        await disableAssignedCharacters();
 
         return { success: true };
     } catch (error) {
