@@ -146,12 +146,14 @@ async function disableAssignedPlayers(groupId) {
             const options = playerSelect.querySelectorAll('option');
             options.forEach(option => {
                 const playerId = parseInt(option.value, 10);
-                if (assignedPlayerIds.has(playerId)) {
-                    option.disabled = true;
-                    option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
-                } else {
-                    option.disabled = false; // Ensure previously disabled options are re-enabled
-                    option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned"
+                if (!isNaN(playerId)) {
+                    if (assignedPlayerIds.has(playerId)) {
+                        option.disabled = true;
+                        option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
+                    } else {
+                        option.disabled = false; // Ensure previously disabled options are re-enabled
+                        option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned"
+                    }
                 }
             });
         });
