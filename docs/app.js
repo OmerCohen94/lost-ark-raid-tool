@@ -140,7 +140,7 @@ async function disableAssignedPlayers(groupId) {
             return;
         }
 
-        // Disable assigned players only in the current group's dropdowns
+        // Update player dropdowns for the current group
         const playerSelects = groupElement.querySelectorAll('.player-select');
         playerSelects.forEach(playerSelect => {
             const options = playerSelect.querySelectorAll('option');
@@ -150,7 +150,7 @@ async function disableAssignedPlayers(groupId) {
                     option.disabled = true;
                     option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
                 } else {
-                    option.disabled = false;
+                    option.disabled = false; // Ensure previously disabled options are re-enabled
                     option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned"
                 }
             });
