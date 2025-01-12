@@ -1067,7 +1067,7 @@ async function resetGroup(groupId) {
 // Function to save group members and prevent duplicate character assignments
 async function saveGroupMembers(groupId, members) {
     if (!groupId || !Array.isArray(members) || members.length === 0) {
-        console.error('Group ID and valid members data are required');
+        console.error('Group ID and valid members data are required:', { groupId, members });
         return { error: 'Group ID and valid members data are required' };
     }
 
@@ -1079,7 +1079,7 @@ async function saveGroupMembers(groupId, members) {
             .eq('id', groupId)
             .single();
 
-        if (groupError || !group) {
+        if (groupError) {
             console.error('Error fetching group details:', groupError);
             return { error: 'Error fetching group details' };
         }
@@ -1108,7 +1108,7 @@ async function saveGroupMembers(groupId, members) {
         // Add group_id to each member before upserting
         const membersWithGroupId = members.map(member => ({
             ...member,
-            group_id: groupId, // Ensure group_id is included
+            group_id: groupId,
         }));
 
         const { error } = await supabase
@@ -1121,9 +1121,7 @@ async function saveGroupMembers(groupId, members) {
         }
 
         console.log('Group members saved successfully');
-
-        // Disable dropdown options for already assigned characters
-        await disableAssignedCharacters();
+        await disableAssignedCharacters(); // Update character dropdowns
 
         return { success: true };
     } catch (error) {
