@@ -120,7 +120,6 @@ function clearCharactersCache(playerId, groupId = null) {
 // Function to disable already assigned players in relevant groups OPTIMIZED
 async function disableAssignedPlayers(groupId) {
     try {
-        // Fetch assigned players for the specific group
         const { data: assignedPlayers, error } = await supabase
             .from('group_members')
             .select('player_id')
@@ -131,16 +130,10 @@ async function disableAssignedPlayers(groupId) {
             return;
         }
 
-        const assignedPlayerIds = new Set(assignedPlayers?.map(p => p.player_id)); // Use Set to avoid duplicates
-
-        // Locate the relevant group element
+        const assignedPlayerIds = new Set(assignedPlayers?.map(p => p.player_id));
         const groupElement = document.querySelector(`.raid-group[data-group-id="${groupId}"]`);
-        if (!groupElement) {
-            console.error(`Group element not found for group ID ${groupId}`);
-            return;
-        }
+        if (!groupElement) return;
 
-        // Update player dropdowns for the current group
         const playerSelects = groupElement.querySelectorAll('.player-select');
         playerSelects.forEach(playerSelect => {
             const options = playerSelect.querySelectorAll('option');
@@ -150,15 +143,16 @@ async function disableAssignedPlayers(groupId) {
                     if (assignedPlayerIds.has(playerId)) {
                         option.disabled = true;
                         option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
+                    } else if (playerSelect.value === option.value) {
+                        option.disabled = false;
+                        option.textContent = `${option.textContent.split(' - ')[0]} - Already Selected`;
                     } else {
-                        option.disabled = false; // Ensure previously disabled options are re-enabled
-                        option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned"
+                        option.disabled = false;
+                        option.textContent = option.textContent.split(' - ')[0];
                     }
                 }
             });
         });
-
-        console.log(`Player dropdowns updated for group ID ${groupId}`);
     } catch (error) {
         console.error('Error disabling assigned players:', error);
     }
@@ -167,7 +161,6 @@ async function disableAssignedPlayers(groupId) {
 // Function to disable already assigned characters across all groups OPTIMIZED
 async function disableAssignedCharacters() {
     try {
-        // Fetch assigned characters from Supabase
         const { data: assignedCharacters, error } = await supabase
             .from('group_members')
             .select('character_id');
@@ -177,30 +170,25 @@ async function disableAssignedCharacters() {
             return;
         }
 
-        if (!assignedCharacters || assignedCharacters.length === 0) {
-            console.log('No assigned characters found.');
-            return;
-        }
-
-        const assignedCharacterIds = new Set(assignedCharacters.map(c => c.character_id)); // Use Set to avoid duplicates
-
-        // Update all character dropdowns
+        const assignedCharacterIds = new Set(assignedCharacters?.map(c => c.character_id));
         const characterDropdowns = document.querySelectorAll('.character-select');
         characterDropdowns.forEach(dropdown => {
+            const selectedValue = dropdown.value; // Save the current selection
             const options = dropdown.querySelectorAll('option');
             options.forEach(option => {
                 const charId = parseInt(option.value, 10);
                 if (assignedCharacterIds.has(charId)) {
                     option.disabled = true;
                     option.textContent = `${option.textContent.split(' - ')[0]} - Already Assigned`;
+                } else if (option.value === selectedValue) {
+                    option.disabled = false;
+                    option.textContent = `${option.textContent.split(' - ')[0]} - Already Selected`;
                 } else {
-                    option.disabled = false; // Re-enable if the character is no longer assigned
-                    option.textContent = option.textContent.split(' - ')[0]; // Remove "Already Assigned" if present
+                    option.disabled = false;
+                    option.textContent = option.textContent.split(' - ')[0];
                 }
             });
         });
-
-        console.log('Character dropdowns updated to reflect assigned characters.');
     } catch (error) {
         console.error('Error disabling assigned characters:', error);
     }
@@ -1074,57 +1062,25 @@ async function saveGroupMembers(groupId, members) {
     }
 
     try {
-        // Fetch the group to determine raid_id
-        const { data: group, error: groupError } = await supabase
-            .from('groups')
-            .select('raid_id')
-            .eq('id', groupId)
-            .single();
-
-        if (groupError || !group) {
-            console.error('Error fetching group details:', groupError);
-            return { error: 'Error fetching group details' };
-        }
-
-        const raidId = group.raid_id;
-
-        // Validate that no character is already assigned to another group in the same raid
-        for (const member of members) {
-            const { data: conflicts, error: conflictError } = await supabase
-                .from('group_members')
-                .select('group_id, groups(group_name)')
-                .eq('character_id', member.character_id)
-                .eq('groups.raid_id', raidId)
-                .neq('group_id', groupId);
-
-            if (conflictError) {
-                console.error('Error checking character assignments:', conflictError);
-                return { error: 'Error checking character assignments' };
-            }
-
-            if (conflicts && conflicts.length > 0) {
-                return { error: `Character is already assigned to ${conflicts[0].groups.group_name} in this raid.` };
-            }
-        }
-
-        // Add group_id to each member before upserting
-        const membersWithGroupId = members.map(member => ({
-            ...member,
-            group_id: groupId,
-        }));
-
         const { error } = await supabase
             .from('group_members')
-            .upsert(membersWithGroupId, { onConflict: ['group_id', 'player_id', 'character_id'] });
+            .upsert(
+                members.map(member => ({
+                    group_id: groupId,
+                    player_id: member.player_id,
+                    character_id: member.character_id,
+                })),
+                { onConflict: ['group_id', 'player_id', 'character_id'] }
+            );
 
         if (error) {
             console.error('Error saving group members:', error);
             return { error: 'Error saving group members' };
         }
 
-        console.log('Group members saved successfully');
+        console.log('Group members saved successfully.');
 
-        // Refresh player and character dropdowns dynamically
+        // Refresh dropdowns dynamically
         const groupElement = document.querySelector(`.raid-group[data-group-id='${groupId}']`);
         if (groupElement) {
             const playerSelects = groupElement.querySelectorAll('.player-select');
