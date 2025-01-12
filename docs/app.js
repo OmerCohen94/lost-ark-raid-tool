@@ -1266,7 +1266,7 @@ function addGroupButtons(group, groupDiv, groupHeader) {
     const deleteButton = document.createElement('button');
     deleteButton.textContent = 'X';
     deleteButton.classList.add('btn', 'btn-danger', 'btn-sm');
-    deleteButton.onclick = async () => handleDeleteGroup(group.id, group.raid_id);
+    deleteButton.onclick = async () => DeleteGroup(group.id, group.raid_id);
     groupHeader.appendChild(deleteButton);
 }
 // Function to create table - might need to move to storage
